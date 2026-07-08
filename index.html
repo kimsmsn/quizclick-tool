@@ -106,8 +106,11 @@
 <div class="wrap">
 
   <div class="card" id="partnerDashboard">
-    <h2>내 파트너 현황</h2>
-    <div class="row3" style="margin-bottom:6px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <h2 style="border:none;margin:0;padding:0;">내 파트너 현황</h2>
+      <button class="btn btn-outline" id="btnLogoutPartner">로그아웃</button>
+    </div>
+    <div class="row3" style="margin-bottom:6px;margin-top:12px;">
       <div>
         <div class="preview-label">파트너</div>
         <div class="preview" id="dashPartnerName" style="min-height:auto;">-</div>
@@ -121,8 +124,27 @@
         <div class="preview" id="dashPrice" style="min-height:auto;">-</div>
       </div>
     </div>
+    <div class="row3" style="margin-bottom:6px;">
+      <div>
+        <div class="preview-label">잔액 (충전 - 소진금액)</div>
+        <div class="preview" id="dashBalance" style="min-height:auto;">-</div>
+      </div>
+      <div>
+        <div class="preview-label">미소진 (배정 - 소진수량)</div>
+        <div class="preview" id="dashRemaining" style="min-height:auto;">-</div>
+      </div>
+      <div>
+        <div class="preview-label">최근 일소진량</div>
+        <div class="preview" id="dashRecentDaily" style="min-height:auto;">-</div>
+      </div>
+    </div>
     <div class="preview-label">일참여한도 현황 (내 캠페인 기간이 겹치는 구간별 합계)</div>
     <div id="dashDailyQuota" class="preview">캠페인을 등록하면 여기에 표시됩니다.</div>
+
+    <div id="childAccountsSection" style="display:none;margin-top:16px;">
+      <div class="preview-label">하위 계정 현황 (모계정 전용)</div>
+      <div class="gridwrap"><table class="grid" id="childAccountsTable"></table></div>
+    </div>
   </div>
 
   <div class="modetabs">
@@ -300,8 +322,13 @@
 
 <div id="adminRoot" style="display:none;">
   <header>
-    <h1>QuizClick 관리자 화면</h1>
-    <p>구글 스프레드시트 데이터를 기준으로, 파트너별 소진/충전/잔액 현황을 확인합니다. (아래 "배정/소진/미소진"은 일일소진 시트 기준의 예전 방식이고, "충전/소진금액/잔액"이 소진원본 시트 기준의 최신 방식입니다.)</p>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+      <div>
+        <h1>QuizClick 관리자 화면</h1>
+        <p>구글 스프레드시트 데이터를 기준으로, 파트너별 소진/충전/잔액 현황을 확인합니다. (아래 "배정/소진/미소진"은 일일소진 시트 기준의 예전 방식이고, "충전/소진금액/잔액"이 소진원본 시트 기준의 최신 방식입니다.)</p>
+      </div>
+      <button class="btn btn-outline" id="btnLogoutAdmin" style="background:#fff;margin-top:2px;">로그아웃</button>
+    </div>
   </header>
   <div class="wrap">
     <div class="card">
@@ -343,13 +370,16 @@
 
     <div class="card">
       <h2>파트너별 일자별 소진 내역</h2>
-      <div class="field" style="max-width:280px;"><label>파트너 선택</label>
-        <select id="admPartnerSelect"></select>
+      <div class="row3">
+        <div class="field"><label>파트너 선택</label><select id="admPartnerSelect"></select></div>
+        <div class="field"><label>시작일</label><input type="date" id="admFromDate"></div>
+        <div class="field"><label>종료일</label><input type="date" id="admToDate"></div>
       </div>
-      <div style="position:relative;width:100%;height:240px;margin:10px 0;">
-        <canvas id="admConsumptionChart"></canvas>
+      <div class="actions">
+        <button class="btn btn-outline" id="btnAdmRangeQuery">기간 조회</button>
       </div>
-      <div class="gridwrap">
+      <div id="admRangeSummary" class="preview" style="margin-top:10px;">파트너와 기간을 선택하고 "기간 조회"를 눌러주세요.</div>
+      <div class="gridwrap" style="margin-top:10px;">
         <table class="grid" id="admConsumptionTable"></table>
       </div>
       <div id="admResult"></div>
@@ -1177,9 +1207,9 @@ async function runSettlementFlow(items, source){
 
 // ==================== 파트너 키 / 관리자 로그인 ====================
 // 담당자: 배포 시 이 값만 실제 Apps Script 웹앱 URL로 바꿔주세요.
-const SETTLEMENT_URL = "https://script.google.com/macros/s/AKfycbyk-Mbwf90EC_oRYelzSehyVAotRG02SQbZjTwDRHdoMmhrRk4kt8Eei1T0jkCviVxQYA/exec";
+const SETTLEMENT_URL = "https://script.google.com/macros/s/AKfycbyHE1xH63PnCE2eT1WYlnKGqNnsVJMtJG2YzdJAgC_-VvkbjV-e2oZ8bl61-ksxXJ4zIw/exec";
 // 담당자: 관리자 전용 키. 파트너 키와 겹치지 않는 값으로 바꿔서 사용하세요.
-const ADMIN_KEY = "kimsman";
+const ADMIN_KEY = "admin_jamong_2026";
 
 let currentPartner = null; // {partnerId, partnerName, placePrice, shoppingPrice, total, campaigns}
 
@@ -1216,6 +1246,17 @@ async function tryUnlock(){
 document.getElementById('lockBtn').addEventListener('click', tryUnlock);
 document.getElementById('lockPw').addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryUnlock(); });
 
+function logout(){
+  currentPartner = null;
+  document.getElementById('appRoot').style.display = 'none';
+  document.getElementById('adminRoot').style.display = 'none';
+  document.getElementById('lockScreen').style.display = 'flex';
+  document.getElementById('lockPw').value = '';
+  document.getElementById('lockErr').textContent = '';
+}
+document.getElementById('btnLogoutPartner').addEventListener('click', logout);
+document.getElementById('btnLogoutAdmin').addEventListener('click', logout);
+
 // ---- 파트너 대시보드 (누적정산 + 일참여한도 겹침 현황) ----
 function computeOverlapSegments(campaigns){
   const valid = (campaigns||[]).filter(c=>c.startAt && c.endAt);
@@ -1249,26 +1290,81 @@ function renderPartnerDashboard(){
   document.getElementById('dashPrice').textContent =
     `${fmtWon(currentPartner.placePrice)} / ${fmtWon(currentPartner.shoppingPrice)}`;
 
+  const status = currentPartner.status;
+  if(status){
+    document.getElementById('dashBalance').textContent = fmtWon(status.balance);
+    document.getElementById('dashRemaining').textContent = Number(status.remaining||0).toLocaleString();
+    const daily = status.dailyConsumption || [];
+    const recent = daily.slice(-1)[0];
+    document.getElementById('dashRecentDaily').textContent = recent
+      ? `${recent.date} : ${Number(recent.amount).toLocaleString()}`
+      : '데이터 없음';
+  }
+
   const segments = computeOverlapSegments(currentPartner.campaigns);
   const dq = document.getElementById('dashDailyQuota');
   if(segments.length===0){
     dq.textContent = '아직 등록된 캠페인 기록이 없습니다.';
-    return;
+  } else {
+    dq.innerHTML = segments.map(s=>
+      `${s.from}${s.from!==s.to? ' ~ '+s.to : ''} : 합계 ${Number(s.total).toLocaleString()}`
+    ).join('\n');
   }
-  dq.innerHTML = segments.map(s=>
-    `${s.from}${s.from!==s.to? ' ~ '+s.to : ''} : 합계 ${Number(s.total).toLocaleString()}`
-  ).join('\n');
+
+  renderChildAccounts();
+}
+
+function renderChildAccounts(){
+  const section = document.getElementById('childAccountsSection');
+  const children = currentPartner.children || [];
+  if(children.length===0){ section.style.display='none'; return; }
+  section.style.display='block';
+
+  const statuses = currentPartner.childrenStatus || [];
+  const table = document.getElementById('childAccountsTable');
+  table.innerHTML = '';
+  const thead=document.createElement('thead'); const trh=document.createElement('tr');
+  ['자계정ID','자계정명','미소진','잔액'].forEach(t=>{ const th=document.createElement('th'); th.textContent=t; trh.appendChild(th); });
+  thead.appendChild(trh); table.appendChild(thead);
+
+  const tbody=document.createElement('tbody');
+  let totalRemaining=0, totalBalance=0;
+  children.forEach((c,i)=>{
+    const st = statuses[i] || {remaining:0, balance:0};
+    totalRemaining += Number(st.remaining||0);
+    totalBalance += Number(st.balance||0);
+    const tr=document.createElement('tr');
+    [c.partnerId, c.partnerName||'-', Number(st.remaining||0).toLocaleString(), fmtWon(st.balance)]
+      .forEach(v=>{ const td=document.createElement('td'); const span=document.createElement('span'); span.textContent=v; td.appendChild(span); tr.appendChild(td); });
+    tbody.appendChild(tr);
+  });
+  const trTotal=document.createElement('tr');
+  ['합계','', totalRemaining.toLocaleString(), fmtWon(totalBalance)].forEach(v=>{
+    const td=document.createElement('td'); const span=document.createElement('span'); span.style.fontWeight='700'; span.textContent=v; td.appendChild(span); trTotal.appendChild(td);
+  });
+  tbody.appendChild(trTotal);
+  table.appendChild(tbody);
 }
 
 async function refreshPartnerDashboard(){
   if(!currentPartner || !SETTLEMENT_URL) return;
   try{
-    const [totalRes, campRes] = await Promise.all([
+    const [totalRes, campRes, statusRes] = await Promise.all([
       fetch(`${SETTLEMENT_URL}?action=getTotal&partnerId=${encodeURIComponent(currentPartner.partnerId)}`).then(r=>r.json()),
-      fetch(`${SETTLEMENT_URL}?action=getCampaigns&partnerId=${encodeURIComponent(currentPartner.partnerId)}`).then(r=>r.json())
+      fetch(`${SETTLEMENT_URL}?action=getCampaigns&partnerId=${encodeURIComponent(currentPartner.partnerId)}`).then(r=>r.json()),
+      fetch(`${SETTLEMENT_URL}?action=getPartnerFullStatus&partnerId=${encodeURIComponent(currentPartner.partnerId)}`).then(r=>r.json())
     ]);
     if(totalRes.success) currentPartner.total = totalRes.total;
     if(campRes.success) currentPartner.campaigns = campRes.campaigns;
+    if(statusRes.success) currentPartner.status = statusRes.status;
+
+    if(currentPartner.children && currentPartner.children.length){
+      const childStatuses = await Promise.all(currentPartner.children.map(c=>
+        fetch(`${SETTLEMENT_URL}?action=getPartnerFullStatus&partnerId=${encodeURIComponent(c.partnerId)}`).then(r=>r.json())
+      ));
+      currentPartner.childrenStatus = childStatuses.map(r=> r.success ? r.status : {remaining:0, balance:0});
+    }
+
     renderPartnerDashboard();
   }catch(e){
     console.error('파트너 현황 새로고침 실패', e);
@@ -1380,24 +1476,36 @@ function renderAdminOverviewTable(overview){
   table.appendChild(tbody);
 }
 
-let admConsumptionChartInstance = null;
+async function fetchPartnerDailyLog(partnerId){
+  const res = await fetch(`${SETTLEMENT_URL}?action=getDailyConsumption&partnerId=${encodeURIComponent(partnerId)}`);
+  const data = await res.json();
+  return data.success ? (data.log || []) : [];
+}
+
 async function refreshAdminConsumptionDetail(){
+  // 파트너 변경 시 요약을 초기화만 하고, 실제 조회는 "기간 조회" 버튼으로 수행합니다.
+  document.getElementById('admRangeSummary').textContent = '기간을 선택하고 "기간 조회"를 눌러주세요.';
+  document.getElementById('admConsumptionTable').innerHTML = '';
+}
+
+document.getElementById('btnAdmRangeQuery').addEventListener('click', async ()=>{
   const partnerId = document.getElementById('admPartnerSelect').value;
+  const from = document.getElementById('admFromDate').value;
+  const to = document.getElementById('admToDate').value;
   const resEl = document.getElementById('admResult');
-  if(!partnerId) return;
-  resEl.innerHTML = '조회 중...';
+  const summaryEl = document.getElementById('admRangeSummary');
+  if(!partnerId){ alert('파트너를 선택해주세요.'); return; }
+
+  summaryEl.textContent = '조회 중...';
   try{
-    const res = await fetch(`${SETTLEMENT_URL}?action=getDailyConsumption&partnerId=${encodeURIComponent(partnerId)}`);
-    const data = await res.json();
-    if(!data.success){ resEl.innerHTML = `<div class="apiresult err">❌ ${data.error||'조회 실패'}</div>`; return; }
+    const log = await fetchPartnerDailyLog(partnerId);
+    const filtered = log.filter(r => (!from || r.date >= from) && (!to || r.date <= to));
+    const total = filtered.reduce((s,r)=>s+r.amount, 0);
 
-    resEl.innerHTML = '';
-    const log = data.log || [];
-    if(log.length===0){
-      resEl.innerHTML = `<div class="hint">"소진원본" 시트에 이 파트너로 매칭되는 데이터가 없습니다. 파트너사 이름 표기가 일치하는지 확인해주세요.</div>`;
-    }
+    summaryEl.textContent = filtered.length===0
+      ? '해당 기간에 소진 데이터가 없습니다.'
+      : `선택 기간(${from||'전체'} ~ ${to||'전체'}) 합계 소진량: ${total.toLocaleString()}`;
 
-    // 표
     const table = document.getElementById('admConsumptionTable');
     table.innerHTML = '';
     const thead = document.createElement('thead');
@@ -1406,7 +1514,7 @@ async function refreshAdminConsumptionDetail(){
     thead.appendChild(trh);
     table.appendChild(thead);
     const tbody = document.createElement('tbody');
-    log.forEach(row=>{
+    filtered.forEach(row=>{
       const tr=document.createElement('tr');
       [row.date, row.amount.toLocaleString()].forEach(v=>{
         const td=document.createElement('td'); const span=document.createElement('span'); span.textContent=v; td.appendChild(span); tr.appendChild(td);
@@ -1414,25 +1522,11 @@ async function refreshAdminConsumptionDetail(){
       tbody.appendChild(tr);
     });
     table.appendChild(tbody);
-
-    // 차트
-    if(typeof Chart !== 'undefined'){
-      const ctx = document.getElementById('admConsumptionChart');
-      if(admConsumptionChartInstance) admConsumptionChartInstance.destroy();
-      admConsumptionChartInstance = new Chart(ctx, {
-        type:'bar',
-        data:{ labels: log.map(r=>r.date), datasets:[{ label:'일 소진량', data: log.map(r=>r.amount), backgroundColor:'#1b2a4a' }] },
-        options:{
-          responsive:true, maintainAspectRatio:false,
-          plugins:{ legend:{display:false} },
-          scales:{ x:{ ticks:{ maxRotation:45, autoSkip:true, maxTicksLimit:14 } }, y:{ beginAtZero:true } }
-        }
-      });
-    }
+    resEl.innerHTML = '';
   }catch(e){
     resEl.innerHTML = `<div class="apiresult err">❌ 호출 실패: ${e.message}</div>`;
   }
-}
+});
 
 document.getElementById('btnAdmRefresh').addEventListener('click', refreshAdminOverview);
 document.getElementById('admPartnerSelect').addEventListener('change', refreshAdminConsumptionDetail);
