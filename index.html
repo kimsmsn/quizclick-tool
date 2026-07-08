@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <title>QuizClick 캠페인 등록 도구</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
   .fillhandle{position:absolute;width:8px;height:8px;background:var(--accent);border:1px solid #fff;box-shadow:0 0 0 1px var(--accent);cursor:crosshair;bottom:-4px;right:-4px;z-index:3;}
   table.grid td{position:relative;}
@@ -127,6 +128,7 @@
   <div class="modetabs">
     <div class="modetab active" id="modeIndividual">개별 등록</div>
     <div class="modetab" id="modeBulk">일괄 등록 (엑셀형태)</div>
+    <div class="modetab" id="modeDaily">일참여한도 현황</div>
   </div>
 
   <div class="card">
@@ -212,6 +214,24 @@
         </div>
       </div>
 
+      <!-- 일참여한도 현황 모드 -->
+      <div id="dailyMode" style="display:none;">
+        <div class="card">
+          <h2>일참여한도 현황 (내 캠페인 기간 겹침 기준)</h2>
+          <div class="hint" style="margin-bottom:10px;">
+            등록된 캠페인들의 시작일~종료일이 겹치는 구간마다, 그 날짜의 일참여한도를 모두 더해서 보여줍니다.
+          </div>
+          <div style="position:relative;width:100%;height:280px;">
+            <canvas id="dailyQuotaChart"></canvas>
+          </div>
+          <div class="actions">
+            <button class="btn btn-outline" id="btnDailyRefresh">새로고침</button>
+          </div>
+          <div class="preview-label" style="margin-top:16px;">구간별 합계 표</div>
+          <div id="dailyQuotaTable" class="preview">데이터가 없습니다.</div>
+        </div>
+      </div>
+
     </div>
 
     <!-- 오른쪽 -->
@@ -278,6 +298,38 @@
 </div>
 </div>
 
+<div id="adminRoot" style="display:none;">
+  <header>
+    <h1>QuizClick 관리자 화면</h1>
+    <p>파트너별 배정량 / 소진량 / 미소진 현황을 확인하고, 하루 소진량을 직접 입력합니다.</p>
+  </header>
+  <div class="wrap">
+    <div class="card">
+      <h2>하루 소진량 입력</h2>
+      <div class="row3">
+        <div class="field"><label>날짜</label><input type="date" id="admDate"></div>
+        <div class="field"><label>파트너</label>
+          <select id="admPartnerSelect"></select>
+        </div>
+        <div class="field"><label>소진 수량</label><input type="number" id="admAmount" placeholder="1000"></div>
+      </div>
+      <div class="field"><label>메모 (선택)</label><input type="text" id="admMemo" placeholder="예: 카카오톡으로 확인함"></div>
+      <div class="actions">
+        <button class="btn btn-primary" id="btnAdmSave">소진량 저장</button>
+        <button class="btn btn-outline" id="btnAdmRefresh">새로고침</button>
+      </div>
+      <div id="admResult"></div>
+    </div>
+
+    <div class="card">
+      <h2>파트너별 배정 / 소진 / 미소진 현황</h2>
+      <div class="gridwrap">
+        <table class="grid" id="admOverviewTable"></table>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 // ==================== 타입/로직 정의 ====================
 function maskText(s){
@@ -286,6 +338,12 @@ function maskText(s){
   if(s.length===0) return s;
   if(s.length<=2) return s.slice(0,-1)+"X";
   return s.split('').map((ch,i)=> ((i+1)%3===0) ? 'X' : ch).join('');
+}
+// "1,050" 같은 천단위 구분 쉼표가 섞인 값도 숫자로 인식하도록 처리
+function parseNum(s){
+  if(s===undefined||s===null||s==='') return NaN;
+  const n = Number(String(s).replace(/,/g,'').trim());
+  return n;
 }
 function firstKeyword(k){ if(!k) return ""; return String(k).split(',')[0].trim(); }
 function autoTitle(k){ const kw=firstKeyword(k); return kw? ("[정답입력]"+kw) : "[정답입력]"; }
@@ -534,11 +592,11 @@ function tryAddCampaign(typeKey, row){
     openUrl: openUrl,
     startAt: row.startAt,
     endAt: row.endAt,
-    totalQuota: Number(row.totalQuota),
-    dailyQuota: Number(row.dailyQuota),
+    totalQuota: parseNum(row.totalQuota),
+    dailyQuota: parseNum(row.dailyQuota),
     quiz: [{ id:1, question: built.question, answer: built.answer, keyword: splitKeywords(row.keyword) }]
   };
-  if(row.supplyPrice && String(row.supplyPrice).trim()!==''){ campaign.supplyPrice = Number(row.supplyPrice); }
+  if(row.supplyPrice && String(row.supplyPrice).trim()!==''){ campaign.supplyPrice = parseNum(row.supplyPrice); }
   if(row.hintUrlChoice && String(row.hintUrlChoice).trim()!==''){ campaign.hintUrl = [String(row.hintUrlChoice).trim()]; }
   if(row.image_url && String(row.image_url).trim()!==''){ campaign.thumbImg = String(row.image_url).trim(); }
 
@@ -549,14 +607,18 @@ function tryAddCampaign(typeKey, row){
 // ==================== 모드 탭 ====================
 document.getElementById('modeIndividual').addEventListener('click', ()=> setMode('individual'));
 document.getElementById('modeBulk').addEventListener('click', ()=> setMode('bulk'));
+document.getElementById('modeDaily').addEventListener('click', ()=> setMode('daily'));
 function setMode(mode){
   currentMode = mode;
   document.getElementById('modeIndividual').classList.toggle('active', mode==='individual');
   document.getElementById('modeBulk').classList.toggle('active', mode==='bulk');
+  document.getElementById('modeDaily').classList.toggle('active', mode==='daily');
   document.getElementById('individualMode').style.display = mode==='individual' ? 'block':'none';
   document.getElementById('bulkMode').style.display = mode==='bulk' ? 'block':'none';
+  document.getElementById('dailyMode').style.display = mode==='daily' ? 'block':'none';
   document.getElementById('previewCard').style.display = mode==='individual' ? 'block':'none';
   if(mode==='bulk') renderGrid();
+  if(mode==='daily') renderDailyQuotaTab();
 }
 
 // ==================== 타입 탭 ====================
@@ -843,8 +905,8 @@ function buildLegacyRows(typeKey){
     if(typeKey==='NSN4') line.push(row.image_url||'');
     rows.push(line);
     settlementItems.push({
-      code: row.code, type: typeKey, totalQuota: Number(row.totalQuota)||0,
-      dailyQuota: Number(row.dailyQuota)||0, startAt: row.startAt, endAt: row.endAt
+      code: row.code, type: typeKey, totalQuota: parseNum(row.totalQuota)||0,
+      dailyQuota: parseNum(row.dailyQuota)||0, startAt: row.startAt, endAt: row.endAt
     });
   });
 
@@ -1065,7 +1127,7 @@ async function runSettlementFlow(items, source){
       method:'POST',
       headers:{'Content-Type':'text/plain;charset=utf-8'}, // Apps Script CORS 프리플라이트 회피
       body: JSON.stringify({
-        partnerId: info.partnerId, source,
+        type:'register', partnerId: info.partnerId, source,
         campaigns: items.map(it=>({
           campaignCode:it.code, campaignType:it.type, totalQuota:it.totalQuota,
           dailyQuota:it.dailyQuota, startAt:it.startAt, endAt:it.endAt
@@ -1086,9 +1148,11 @@ async function runSettlementFlow(items, source){
   }
 }
 
-// ==================== 파트너 키 로그인 ====================
+// ==================== 파트너 키 / 관리자 로그인 ====================
 // 담당자: 배포 시 이 값만 실제 Apps Script 웹앱 URL로 바꿔주세요.
-const SETTLEMENT_URL = "https://script.google.com/macros/s/AKfycbyBS6chilosZZSqZDHV4rGAa3Lxq9v0F4JWO25giddGVuzmQb5HXwVn1qvmbRKTR8dDwQ/exec";
+const SETTLEMENT_URL = "https://script.google.com/macros/s/AKfycbzxAHCEhNHFL41m49oLBEan5zS1MognwuYxWsmUtWaDiW-PjJDXPEUjDZH7C8ekV44fNg/exec";
+// 담당자: 관리자 전용 키. 파트너 키와 겹치지 않는 값으로 바꿔서 사용하세요.
+const ADMIN_KEY = "kimsman99";
 
 let currentPartner = null; // {partnerId, partnerName, placePrice, shoppingPrice, total, campaigns}
 
@@ -1096,6 +1160,14 @@ async function tryUnlock(){
   const key = document.getElementById('lockPw').value.trim();
   const errEl = document.getElementById('lockErr');
   if(!key){ errEl.textContent = '키를 입력해주세요.'; return; }
+
+  if(key === ADMIN_KEY){
+    document.getElementById('lockScreen').style.display = 'none';
+    document.getElementById('adminRoot').style.display = 'block';
+    await refreshAdminOverview();
+    return;
+  }
+
   errEl.textContent = '확인 중...';
   try{
     const res = await fetch(`${SETTLEMENT_URL}?action=login&key=${encodeURIComponent(key)}`);
@@ -1176,6 +1248,135 @@ async function refreshPartnerDashboard(){
 }
 
 document.getElementById('btnCheckPrice').addEventListener('click', refreshPartnerDashboard);
+
+// ==================== 일참여한도 현황 탭 (일별 그래프) ====================
+function computeDailySeries(campaigns){
+  const valid = (campaigns||[]).filter(c=>c.startAt && c.endAt);
+  if(valid.length===0) return {labels:[], totals:[]};
+  const toTime = s => new Date(s+'T00:00:00').getTime();
+  const startTime = Math.min(...valid.map(c=>toTime(c.startAt)));
+  const endTime = Math.max(...valid.map(c=>toTime(c.endAt)));
+  const labels=[], totals=[];
+  let cur = new Date(startTime);
+  const end = new Date(endTime);
+  while(cur.getTime() <= end.getTime()){
+    const iso = cur.toISOString().slice(0,10);
+    const total = valid.reduce((s,c)=> (c.startAt<=iso && iso<=c.endAt) ? s+(Number(c.dailyQuota)||0) : s, 0);
+    labels.push(iso);
+    totals.push(total);
+    cur.setDate(cur.getDate()+1);
+  }
+  return {labels, totals};
+}
+
+let dailyQuotaChartInstance = null;
+function renderDailyQuotaTab(){
+  if(!currentPartner) return;
+  const {labels, totals} = computeDailySeries(currentPartner.campaigns);
+  const segments = computeOverlapSegments(currentPartner.campaigns);
+
+  const tableEl = document.getElementById('dailyQuotaTable');
+  tableEl.innerHTML = segments.length===0 ? '데이터가 없습니다.' :
+    segments.map(s=> `${s.from}${s.from!==s.to? ' ~ '+s.to : ''} : 합계 ${Number(s.total).toLocaleString()}`).join('\n');
+
+  if(typeof Chart === 'undefined') return;
+  const ctx = document.getElementById('dailyQuotaChart');
+  if(dailyQuotaChartInstance) dailyQuotaChartInstance.destroy();
+  dailyQuotaChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [{ label: '일참여한도 합계', data: totals, backgroundColor:'#e8622c' }] },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false} },
+      scales:{
+        x:{ ticks:{ maxRotation:45, autoSkip:true, maxTicksLimit:14 } },
+        y:{ beginAtZero:true }
+      }
+    }
+  });
+}
+
+document.getElementById('btnDailyRefresh').addEventListener('click', async ()=>{
+  await refreshPartnerDashboard();
+  renderDailyQuotaTab();
+});
+
+// ==================== 관리자 화면 ====================
+async function refreshAdminOverview(){
+  const resEl = document.getElementById('admResult');
+  try{
+    const [partnersRes, overviewRes] = await Promise.all([
+      fetch(`${SETTLEMENT_URL}?action=getAllPartners`).then(r=>r.json()),
+      fetch(`${SETTLEMENT_URL}?action=getAdminOverview`).then(r=>r.json())
+    ]);
+
+    if(partnersRes.success){
+      const sel = document.getElementById('admPartnerSelect');
+      sel.innerHTML = partnersRes.partners.map(p=>
+        `<option value="${p.partnerId}">${p.partnerId}${p.partnerName? ' ('+p.partnerName+')':''}</option>`
+      ).join('');
+    }
+
+    if(overviewRes.success){
+      renderAdminOverviewTable(overviewRes.overview);
+    }
+  }catch(e){
+    resEl.innerHTML = `<div class="apiresult err">현황 조회 실패: ${e.message}</div>`;
+  }
+}
+
+function renderAdminOverviewTable(overview){
+  const table = document.getElementById('admOverviewTable');
+  table.innerHTML = '';
+  const thead = document.createElement('thead');
+  const trh = document.createElement('tr');
+  ['파트너ID','파트너명','배정량(전체참여한도 합계)','누적 소진','미소진'].forEach(t=>{
+    const th=document.createElement('th'); th.textContent=t; trh.appendChild(th);
+  });
+  thead.appendChild(trh);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  overview.forEach(row=>{
+    const tr = document.createElement('tr');
+    [row.partnerId, row.partnerName||'-', row.allocated.toLocaleString(), row.consumed.toLocaleString(), row.remaining.toLocaleString()]
+      .forEach(v=>{ const td=document.createElement('td'); const inp=document.createElement('span'); inp.textContent=v; td.appendChild(inp); tr.appendChild(td); });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+}
+
+document.getElementById('btnAdmRefresh').addEventListener('click', refreshAdminOverview);
+
+document.getElementById('btnAdmSave').addEventListener('click', async ()=>{
+  const date = document.getElementById('admDate').value;
+  const partnerId = document.getElementById('admPartnerSelect').value;
+  const amount = document.getElementById('admAmount').value.trim();
+  const memo = document.getElementById('admMemo').value.trim();
+  const resEl = document.getElementById('admResult');
+
+  if(!date || !partnerId || !amount){ alert('날짜, 파트너, 소진 수량을 모두 입력해주세요.'); return; }
+
+  resEl.innerHTML = '저장 중...';
+  try{
+    const res = await fetch(SETTLEMENT_URL, {
+      method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ type:'consumption', partnerId, date, amount: parseNum(amount), memo })
+    });
+    const data = await res.json();
+    if(data.success){
+      resEl.innerHTML = `<div class="apiresult ok">✅ 저장 완료</div>`;
+      renderAdminOverviewTable(data.overview);
+      document.getElementById('admAmount').value='';
+      document.getElementById('admMemo').value='';
+    } else {
+      resEl.innerHTML = `<div class="apiresult err">❌ ${data.error||'저장 실패'}</div>`;
+    }
+  }catch(e){
+    resEl.innerHTML = `<div class="apiresult err">❌ 호출 실패: ${e.message}</div>`;
+  }
+});
 
 // ==================== 초기화 ====================
 renderAll();
