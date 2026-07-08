@@ -301,31 +301,58 @@
 <div id="adminRoot" style="display:none;">
   <header>
     <h1>QuizClick 관리자 화면</h1>
-    <p>파트너별 배정량 / 소진량 / 미소진 현황을 확인하고, 하루 소진량을 직접 입력합니다.</p>
+    <p>구글 스프레드시트 "일일소진" 시트에 직접 입력한 데이터를 기준으로, 파트너별 배정량 / 소진량 / 미소진 현황을 확인합니다.</p>
   </header>
   <div class="wrap">
     <div class="card">
-      <h2>하루 소진량 입력</h2>
-      <div class="row3">
-        <div class="field"><label>날짜</label><input type="date" id="admDate"></div>
-        <div class="field"><label>파트너</label>
-          <select id="admPartnerSelect"></select>
-        </div>
-        <div class="field"><label>소진 수량</label><input type="number" id="admAmount" placeholder="1000"></div>
+      <h2>파트너별 배정 / 소진 / 미소진 현황</h2>
+      <div class="hint" style="margin-bottom:10px;">
+        데이터는 구글 스프레드시트의 "일일소진" 시트에서 그대로 읽어옵니다. 소진량을 추가/수정하려면
+        이 페이지가 아니라 스프레드시트를 직접 편집한 뒤 "새로고침"을 눌러주세요.
       </div>
-      <div class="field"><label>메모 (선택)</label><input type="text" id="admMemo" placeholder="예: 카카오톡으로 확인함"></div>
       <div class="actions">
-        <button class="btn btn-primary" id="btnAdmSave">소진량 저장</button>
         <button class="btn btn-outline" id="btnAdmRefresh">새로고침</button>
       </div>
-      <div id="admResult"></div>
+      <div class="gridwrap" style="margin-top:10px;">
+        <table class="grid" id="admOverviewTable"></table>
+      </div>
     </div>
 
     <div class="card">
-      <h2>파트너별 배정 / 소진 / 미소진 현황</h2>
-      <div class="gridwrap">
-        <table class="grid" id="admOverviewTable"></table>
+      <h2>파트너별 충전 / 소진금액 / 잔액</h2>
+      <div class="hint" style="margin-bottom:10px;">
+        소진수량·금액은 "소진원본" 시트(광고주/파트너사/날짜/캠페인타입/소진수량)와 "파트너단가" 시트(유형별 단가)를
+        기준으로 자동 계산됩니다. 충전금액은 아래에서 직접 입력하거나, "충전내역" 시트에 바로 추가하셔도 됩니다.
       </div>
+      <div class="row3">
+        <div class="field"><label>날짜</label><input type="date" id="chgDate"></div>
+        <div class="field"><label>파트너</label><select id="chgPartnerSelect"></select></div>
+        <div class="field"><label>충전 금액</label><input type="text" id="chgAmount" placeholder="1,000,000"></div>
+      </div>
+      <div class="field"><label>메모 (선택)</label><input type="text" id="chgMemo" placeholder="예: 7월 1차 충전"></div>
+      <div class="actions">
+        <button class="btn btn-primary" id="btnChgSave">충전금액 저장</button>
+        <button class="btn btn-outline" id="btnMoneyRefresh">새로고침</button>
+      </div>
+      <div id="chgResult"></div>
+      <div class="gridwrap" style="margin-top:10px;">
+        <table class="grid" id="admMoneyTable"></table>
+      </div>
+      <div id="admUnmatchedHint" class="hint" style="margin-top:8px;"></div>
+    </div>
+
+    <div class="card">
+      <h2>파트너별 일자별 소진 내역</h2>
+      <div class="field" style="max-width:280px;"><label>파트너 선택</label>
+        <select id="admPartnerSelect"></select>
+      </div>
+      <div style="position:relative;width:100%;height:240px;margin:10px 0;">
+        <canvas id="admConsumptionChart"></canvas>
+      </div>
+      <div class="gridwrap">
+        <table class="grid" id="admConsumptionTable"></table>
+      </div>
+      <div id="admResult"></div>
     </div>
   </div>
 </div>
@@ -1150,9 +1177,9 @@ async function runSettlementFlow(items, source){
 
 // ==================== 파트너 키 / 관리자 로그인 ====================
 // 담당자: 배포 시 이 값만 실제 Apps Script 웹앱 URL로 바꿔주세요.
-const SETTLEMENT_URL = "https://script.google.com/macros/s/AKfycbzxAHCEhNHFL41m49oLBEan5zS1MognwuYxWsmUtWaDiW-PjJDXPEUjDZH7C8ekV44fNg/exec";
+const SETTLEMENT_URL = "https://script.google.com/macros/s/AKfycbyk-Mbwf90EC_oRYelzSehyVAotRG02SQbZjTwDRHdoMmhrRk4kt8Eei1T0jkCviVxQYA/exec";
 // 담당자: 관리자 전용 키. 파트너 키와 겹치지 않는 값으로 바꿔서 사용하세요.
-const ADMIN_KEY = "kimsman99";
+const ADMIN_KEY = "kimsman";
 
 let currentPartner = null; // {partnerId, partnerName, placePrice, shoppingPrice, total, campaigns}
 
@@ -1165,6 +1192,7 @@ async function tryUnlock(){
     document.getElementById('lockScreen').style.display = 'none';
     document.getElementById('adminRoot').style.display = 'block';
     await refreshAdminOverview();
+    await refreshMoneyOverview();
     return;
   }
 
@@ -1312,13 +1340,19 @@ async function refreshAdminOverview(){
 
     if(partnersRes.success){
       const sel = document.getElementById('admPartnerSelect');
+      const prevValue = sel.value;
       sel.innerHTML = partnersRes.partners.map(p=>
         `<option value="${p.partnerId}">${p.partnerId}${p.partnerName? ' ('+p.partnerName+')':''}</option>`
       ).join('');
+      if(prevValue) sel.value = prevValue;
     }
 
     if(overviewRes.success){
       renderAdminOverviewTable(overviewRes.overview);
+    }
+
+    if(document.getElementById('admPartnerSelect').value){
+      await refreshAdminConsumptionDetail();
     }
   }catch(e){
     resEl.innerHTML = `<div class="apiresult err">현황 조회 실패: ${e.message}</div>`;
@@ -1340,36 +1374,140 @@ function renderAdminOverviewTable(overview){
   overview.forEach(row=>{
     const tr = document.createElement('tr');
     [row.partnerId, row.partnerName||'-', row.allocated.toLocaleString(), row.consumed.toLocaleString(), row.remaining.toLocaleString()]
-      .forEach(v=>{ const td=document.createElement('td'); const inp=document.createElement('span'); inp.textContent=v; td.appendChild(inp); tr.appendChild(td); });
+      .forEach(v=>{ const td=document.createElement('td'); const span=document.createElement('span'); span.textContent=v; td.appendChild(span); tr.appendChild(td); });
     tbody.appendChild(tr);
   });
   table.appendChild(tbody);
 }
 
-document.getElementById('btnAdmRefresh').addEventListener('click', refreshAdminOverview);
-
-document.getElementById('btnAdmSave').addEventListener('click', async ()=>{
-  const date = document.getElementById('admDate').value;
+let admConsumptionChartInstance = null;
+async function refreshAdminConsumptionDetail(){
   const partnerId = document.getElementById('admPartnerSelect').value;
-  const amount = document.getElementById('admAmount').value.trim();
-  const memo = document.getElementById('admMemo').value.trim();
   const resEl = document.getElementById('admResult');
+  if(!partnerId) return;
+  resEl.innerHTML = '조회 중...';
+  try{
+    const res = await fetch(`${SETTLEMENT_URL}?action=getConsumptionLog&partnerId=${encodeURIComponent(partnerId)}`);
+    const data = await res.json();
+    if(!data.success){ resEl.innerHTML = `<div class="apiresult err">❌ ${data.error||'조회 실패'}</div>`; return; }
 
-  if(!date || !partnerId || !amount){ alert('날짜, 파트너, 소진 수량을 모두 입력해주세요.'); return; }
+    resEl.innerHTML = '';
+    const log = data.log || [];
+
+    // 표
+    const table = document.getElementById('admConsumptionTable');
+    table.innerHTML = '';
+    const thead = document.createElement('thead');
+    const trh = document.createElement('tr');
+    ['날짜','소진수량','메모'].forEach(t=>{ const th=document.createElement('th'); th.textContent=t; trh.appendChild(th); });
+    thead.appendChild(trh);
+    table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    log.forEach(row=>{
+      const tr=document.createElement('tr');
+      [row.date, row.amount.toLocaleString(), row.memo||''].forEach(v=>{
+        const td=document.createElement('td'); const span=document.createElement('span'); span.textContent=v; td.appendChild(span); tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+
+    // 차트
+    if(typeof Chart !== 'undefined'){
+      const ctx = document.getElementById('admConsumptionChart');
+      if(admConsumptionChartInstance) admConsumptionChartInstance.destroy();
+      admConsumptionChartInstance = new Chart(ctx, {
+        type:'bar',
+        data:{ labels: log.map(r=>r.date), datasets:[{ label:'일 소진량', data: log.map(r=>r.amount), backgroundColor:'#1b2a4a' }] },
+        options:{
+          responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{display:false} },
+          scales:{ x:{ ticks:{ maxRotation:45, autoSkip:true, maxTicksLimit:14 } }, y:{ beginAtZero:true } }
+        }
+      });
+    }
+  }catch(e){
+    resEl.innerHTML = `<div class="apiresult err">❌ 호출 실패: ${e.message}</div>`;
+  }
+}
+
+document.getElementById('btnAdmRefresh').addEventListener('click', refreshAdminOverview);
+document.getElementById('admPartnerSelect').addEventListener('change', refreshAdminConsumptionDetail);
+
+// ==================== 파트너별 충전 / 소진금액 / 잔액 ====================
+function renderMoneyTable(overview){
+  const table = document.getElementById('admMoneyTable');
+  table.innerHTML = '';
+  const thead = document.createElement('thead');
+  const trh = document.createElement('tr');
+  ['파트너ID','파트너명','소진수량','소진금액','충전금액','잔액'].forEach(t=>{
+    const th=document.createElement('th'); th.textContent=t; trh.appendChild(th);
+  });
+  thead.appendChild(trh);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  overview.forEach(row=>{
+    const tr = document.createElement('tr');
+    [
+      row.partnerId, row.partnerName||'-', row.consumedQty.toLocaleString(),
+      fmtWon(row.consumedAmount), fmtWon(row.charged), fmtWon(row.balance)
+    ].forEach(v=>{ const td=document.createElement('td'); const span=document.createElement('span'); span.textContent=v; td.appendChild(span); tr.appendChild(td); });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+}
+
+async function refreshMoneyOverview(){
+  try{
+    const res = await fetch(`${SETTLEMENT_URL}?action=getMoneyOverview`);
+    const data = await res.json();
+    if(!data.success) return;
+    renderMoneyTable(data.overview);
+
+    const hintEl = document.getElementById('admUnmatchedHint');
+    if(data.unmatchedPartnerNames && data.unmatchedPartnerNames.length){
+      hintEl.textContent = `⚠️ "소진원본" 시트에 있지만 파트너설정과 매칭되지 않은 이름: ${data.unmatchedPartnerNames.join(', ')}`;
+    } else {
+      hintEl.textContent = '';
+    }
+
+    // 충전 폼의 파트너 선택 목록도 함께 채움
+    const chgSel = document.getElementById('chgPartnerSelect');
+    if(chgSel.options.length===0){
+      chgSel.innerHTML = data.overview.map(p=>
+        `<option value="${p.partnerId}">${p.partnerId}${p.partnerName? ' ('+p.partnerName+')':''}</option>`
+      ).join('');
+    }
+  }catch(e){
+    console.error('소진금액 현황 조회 실패', e);
+  }
+}
+
+document.getElementById('btnMoneyRefresh').addEventListener('click', refreshMoneyOverview);
+
+document.getElementById('btnChgSave').addEventListener('click', async ()=>{
+  const date = document.getElementById('chgDate').value;
+  const partnerId = document.getElementById('chgPartnerSelect').value;
+  const amount = document.getElementById('chgAmount').value.trim();
+  const memo = document.getElementById('chgMemo').value.trim();
+  const resEl = document.getElementById('chgResult');
+
+  if(!date || !partnerId || !amount){ alert('날짜, 파트너, 충전 금액을 모두 입력해주세요.'); return; }
 
   resEl.innerHTML = '저장 중...';
   try{
     const res = await fetch(SETTLEMENT_URL, {
       method:'POST',
       headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify({ type:'consumption', partnerId, date, amount: parseNum(amount), memo })
+      body: JSON.stringify({ type:'charge', partnerId, date, amount: parseNum(amount), memo })
     });
     const data = await res.json();
     if(data.success){
-      resEl.innerHTML = `<div class="apiresult ok">✅ 저장 완료</div>`;
-      renderAdminOverviewTable(data.overview);
-      document.getElementById('admAmount').value='';
-      document.getElementById('admMemo').value='';
+      resEl.innerHTML = `<div class="apiresult ok">✅ 충전 저장 완료</div>`;
+      renderMoneyTable(data.overview);
+      document.getElementById('chgAmount').value='';
+      document.getElementById('chgMemo').value='';
     } else {
       resEl.innerHTML = `<div class="apiresult err">❌ ${data.error||'저장 실패'}</div>`;
     }
