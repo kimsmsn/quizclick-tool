@@ -89,20 +89,40 @@
 
 <div class="lockscreen" id="lockScreen">
   <h2>QuizClick 캠페인 등록 도구</h2>
-  <p>접근 암호를 입력해주세요 (담당자에게 문의)</p>
-  <input type="password" id="lockPw" placeholder="암호 입력" autocomplete="off">
+  <p>파트너사 전용 키를 입력해주세요 (담당자에게 문의)</p>
+  <input type="text" id="lockPw" placeholder="파트너 키 입력" autocomplete="off">
   <button id="lockBtn">입장하기</button>
   <div class="err" id="lockErr"></div>
-  <div class="versiontag">v1.0 · 2026-07-08 업데이트</div>
+  <div class="versiontag">v2.0 · 2026-07-08 업데이트</div>
 </div>
 
 <div id="appRoot" style="display:none;">
 <header>
-  <h1>QuizClick 캠페인 등록 도구 <span style="font-size:11px;font-weight:400;color:#b9c3da;">v1.0 · 2026-07-08 업데이트</span></h1>
+  <h1>QuizClick 캠페인 등록 도구 <span style="font-size:11px;font-weight:400;color:#b9c3da;">v2.0 · 2026-07-08 업데이트</span></h1>
   <p>원본 데이터만 입력하면 문제·정답·캠페인명이 자동으로 만들어집니다.</p>
 </header>
 
 <div class="wrap">
+
+  <div class="card" id="partnerDashboard">
+    <h2>내 파트너 현황</h2>
+    <div class="row3" style="margin-bottom:6px;">
+      <div>
+        <div class="preview-label">파트너</div>
+        <div class="preview" id="dashPartnerName" style="min-height:auto;">-</div>
+      </div>
+      <div>
+        <div class="preview-label">누적 정산금액</div>
+        <div class="preview" id="dashTotal" style="min-height:auto;">-</div>
+      </div>
+      <div>
+        <div class="preview-label">단가 (플레이스 / 쇼핑)</div>
+        <div class="preview" id="dashPrice" style="min-height:auto;">-</div>
+      </div>
+    </div>
+    <div class="preview-label">일참여한도 현황 (내 캠페인 기간이 겹치는 구간별 합계)</div>
+    <div id="dashDailyQuota" class="preview">캠페인을 등록하면 여기에 표시됩니다.</div>
+  </div>
 
   <div class="modetabs">
     <div class="modetab active" id="modeIndividual">개별 등록</div>
@@ -164,8 +184,8 @@
             셀을 클릭해서 직접 입력하거나, <b>진짜 엑셀에서 범위를 복사(Ctrl+C)한 뒤 첫 칸을 클릭하고 붙여넣기(Ctrl+V)</b>하면
             여러 행·열이 한 번에 채워집니다. 힌트랜딩 URL 칸에는 원하는 URL을 자유롭게 입력하세요.
           </div>
-          <div class="field" style="max-width:280px;"><label>광고주 ID <span class="badge opt">선택 · 원본양식 다운로드시 전체 행 공통 적용</span></label>
-            <input type="text" id="f_advertiserId" placeholder="smartlab"></div>
+          <div class="field" style="max-width:280px;"><label>광고주 ID <span class="badge opt">로그인한 파트너로 자동 고정됨</span></label>
+            <input type="text" id="f_advertiserId" placeholder="smartlab" readonly style="background:#f0f1f4;color:var(--muted);"></div>
           <div class="gridwrap"><table class="grid" id="gridTable"></table></div>
           <div class="actions">
             <button class="btn btn-outline" id="btnAddRows">+ 행 10개 추가</button>
@@ -242,22 +262,15 @@
     </div>
 
     <div class="card">
-      <h2>파트너 정산 연동 (구글 스프레드시트, 선택)</h2>
+      <h2>파트너 정산 연동 (구글 스프레드시트)</h2>
       <div class="hint" style="margin-bottom:8px;">
-        파트너별 <b>플레이스단가 / 쇼핑단가</b>를 구글 스프레드시트에서 관리합니다.
-        캠페인 타입이 NSN4(상품번호)면 쇼핑단가, 그 외 타입이면 플레이스단가가 자동 적용되어
-        "전체참여한도 × 단가"가 계산됩니다.<br>
+        로그인한 파트너 키를 기준으로 자동 연동됩니다. 파트너별 <b>플레이스단가 / 쇼핑단가</b>가
+        구글 스프레드시트 기준으로 적용되어 "전체참여한도 × 단가"가 계산됩니다.<br>
         기록 시점은 <b>① QuizClick API 등록 성공 시</b>와 <b>② '일괄등록' 엑셀 다운로드 시</b> 두 곳이며,
         기록 전에 항상 확인 팝업으로 정산 금액을 보여드리고 "예"를 눌러야 실제로 기록됩니다.
-        등록되지 않은 파트너 ID는 자동으로 걸러지고 기록되지 않습니다.
-      </div>
-      <div class="field"><label>Apps Script 웹앱 URL</label>
-        <input type="text" id="f_sheetUrl" placeholder="https://script.google.com/macros/s/xxx/exec"></div>
-      <div class="hint" style="margin-bottom:10px;">
-        파트너 ID는 위쪽 일괄등록 카드의 "광고주 ID" 칸 값을 그대로 사용합니다.
       </div>
       <div class="actions">
-        <button class="btn btn-outline" id="btnCheckPrice">단가 조회</button>
+        <button class="btn btn-outline" id="btnCheckPrice">단가/현황 새로고침</button>
       </div>
       <div id="settlementResult"></div>
     </div>
@@ -829,7 +842,10 @@ function buildLegacyRows(typeKey){
     ];
     if(typeKey==='NSN4') line.push(row.image_url||'');
     rows.push(line);
-    settlementItems.push({code: row.code, type: typeKey, totalQuota: Number(row.totalQuota)||0});
+    settlementItems.push({
+      code: row.code, type: typeKey, totalQuota: Number(row.totalQuota)||0,
+      dailyQuota: Number(row.dailyQuota)||0, startAt: row.startAt, endAt: row.endAt
+    });
   });
 
   return {header, rows, errors, settlementItems};
@@ -1002,7 +1018,10 @@ document.getElementById('btnCallApi').addEventListener('click', async ()=>{
     if(data.statusCode===0){
       resultEl.className='apiresult ok';
       resultEl.textContent = "✅ 등록 성공\n"+JSON.stringify(data, null, 2);
-      await runSettlementFlow(campaigns.map(c=>({code:c.code, type:c.type, totalQuota:c.totalQuota})), 'API등록');
+      await runSettlementFlow(campaigns.map(c=>({
+        code:c.code, type:c.type, totalQuota:c.totalQuota,
+        dailyQuota:c.dailyQuota, startAt:c.startAt, endAt:c.endAt
+      })), 'API등록');
     } else {
       resultEl.className='apiresult err';
       resultEl.textContent = "❌ 등록 실패\n"+JSON.stringify(data, null, 2);
@@ -1022,38 +1041,12 @@ function renderSettlementResult(html){
   document.getElementById('settlementResult').innerHTML = html;
 }
 
-function getSettlementConfig(){
-  return {
-    url: document.getElementById('f_sheetUrl').value.trim(),
-    partnerId: document.getElementById('f_advertiserId').value.trim()
-  };
-}
-
-async function fetchPartnerInfo(url, partnerId){
-  const res = await fetch(`${url}?action=getPrice&partnerId=${encodeURIComponent(partnerId)}`);
-  return res.json();
-}
-
-// items: [{code, type, totalQuota}, ...] / source: 'API등록' | '엑셀다운로드'
+// items: [{code, type, totalQuota, dailyQuota, startAt, endAt}, ...] / source: 'API등록' | '엑셀다운로드'
 async function runSettlementFlow(items, source){
-  const {url, partnerId} = getSettlementConfig();
-  if(!url || !partnerId) return; // 연동 미설정 시 조용히 스킵
+  if(!currentPartner){ return; } // 로그인 안 된 상태면 조용히 스킵
   if(!items || items.length===0) return;
 
-  renderSettlementResult('파트너 단가 확인 중...');
-  let info;
-  try{
-    info = await fetchPartnerInfo(url, partnerId);
-  }catch(e){
-    renderSettlementResult(`<div class="apiresult err">❌ 정산 서버 호출 실패: ${e.message}</div>`);
-    return;
-  }
-  if(!info.success){
-    // 등록되지 않은(걸러지는) 파트너 ID -> 로그를 남기지 않고 안내만 함
-    renderSettlementResult(`<div class="apiresult err">❌ 등록되지 않은 파트너 ID입니다: ${partnerId} (정산 기록 생략)</div>`);
-    return;
-  }
-
+  const info = currentPartner;
   const priced = items.map(it=>{
     const unitPrice = isShoppingType(it.type) ? info.shoppingPrice : info.placePrice;
     return { ...it, unitPrice, amount: (Number(it.totalQuota)||0) * unitPrice };
@@ -1062,18 +1055,21 @@ async function runSettlementFlow(items, source){
 
   const summary = priced.map(p=>` - ${p.code} (${p.type}): 참여한도 ${p.totalQuota} × 단가 ${fmtWon(p.unitPrice)} = ${fmtWon(p.amount)}`).join('\n');
   const ok = confirm(
-    `[${source}] 파트너 ${partnerId}${info.partnerName? ' ('+info.partnerName+')':''} 기준\n`+
+    `[${source}] 파트너 ${info.partnerId}${info.partnerName? ' ('+info.partnerName+')':''} 기준\n`+
     `총 ${priced.length}건, 정산 합계 금액은 ${fmtWon(totalAmount)} 입니다.\n\n${summary}\n\n스프레드시트에 기록하시겠습니까?`
   );
   if(!ok){ renderSettlementResult('정산 기록을 취소했습니다.'); return; }
 
   try{
-    const res = await fetch(url, {
+    const res = await fetch(SETTLEMENT_URL, {
       method:'POST',
       headers:{'Content-Type':'text/plain;charset=utf-8'}, // Apps Script CORS 프리플라이트 회피
       body: JSON.stringify({
-        partnerId, source,
-        campaigns: items.map(it=>({campaignCode:it.code, campaignType:it.type, totalQuota:it.totalQuota}))
+        partnerId: info.partnerId, source,
+        campaigns: items.map(it=>({
+          campaignCode:it.code, campaignType:it.type, totalQuota:it.totalQuota,
+          dailyQuota:it.dailyQuota, startAt:it.startAt, endAt:it.endAt
+        }))
       })
     });
     const data = await res.json();
@@ -1081,6 +1077,7 @@ async function runSettlementFlow(items, source){
       renderSettlementResult(
         `<div class="apiresult ok">✅ [${source}] ${priced.length}건 기록 완료 · 이번 합계 ${fmtWon(data.totalAmount)} · 파트너 누적 ${fmtWon(data.partnerTotal)}</div>`
       );
+      await refreshPartnerDashboard();
     } else {
       renderSettlementResult(`<div class="apiresult err">❌ 기록 실패: ${data.error||'알 수 없는 오류'}</div>`);
     }
@@ -1089,39 +1086,96 @@ async function runSettlementFlow(items, source){
   }
 }
 
-document.getElementById('btnCheckPrice').addEventListener('click', async ()=>{
-  const {url, partnerId} = getSettlementConfig();
-  if(!url || !partnerId){ alert('연동 URL과 광고주(파트너) ID를 모두 입력해주세요.'); return; }
-  renderSettlementResult('조회 중...');
+// ==================== 파트너 키 로그인 ====================
+// 담당자: 배포 시 이 값만 실제 Apps Script 웹앱 URL로 바꿔주세요.
+const SETTLEMENT_URL = "https://script.google.com/macros/s/여기에_배포된_URL/exec";
+
+let currentPartner = null; // {partnerId, partnerName, placePrice, shoppingPrice, total, campaigns}
+
+async function tryUnlock(){
+  const key = document.getElementById('lockPw').value.trim();
+  const errEl = document.getElementById('lockErr');
+  if(!key){ errEl.textContent = '키를 입력해주세요.'; return; }
+  errEl.textContent = '확인 중...';
   try{
-    const data = await fetchPartnerInfo(url, partnerId);
-    if(data.success){
-      renderSettlementResult(
-        `<div class="apiresult ok">파트너 ${partnerId}${data.partnerName? ' ('+data.partnerName+')':''} · `+
-        `플레이스단가 ${fmtWon(data.placePrice)} · 쇼핑단가 ${fmtWon(data.shoppingPrice)}</div>`
-      );
-    } else {
-      renderSettlementResult(`<div class="apiresult err">❌ ${data.error}</div>`);
+    const res = await fetch(`${SETTLEMENT_URL}?action=login&key=${encodeURIComponent(key)}`);
+    const data = await res.json();
+    if(!data.success){
+      errEl.textContent = data.error || '유효하지 않은 키입니다.';
+      return;
     }
-  }catch(e){
-    renderSettlementResult(`<div class="apiresult err">호출 실패: ${e.message}</div>`);
-  }
-});
-
-// ==================== 접근 암호 ====================
-const ACCESS_CODE = "jamong2026"; // 담당자: 이 값만 바꾸면 암호가 바뀝니다.
-
-function tryUnlock(){
-  const pw = document.getElementById('lockPw').value;
-  if(pw === ACCESS_CODE){
+    currentPartner = data;
     document.getElementById('lockScreen').style.display = 'none';
     document.getElementById('appRoot').style.display = 'block';
-  } else {
-    document.getElementById('lockErr').textContent = '암호가 올바르지 않습니다.';
+    document.getElementById('f_advertiserId').value = data.partnerId;
+    renderPartnerDashboard();
+  }catch(e){
+    errEl.textContent = '로그인 서버 호출 실패: ' + e.message;
   }
 }
 document.getElementById('lockBtn').addEventListener('click', tryUnlock);
 document.getElementById('lockPw').addEventListener('keydown', (e)=>{ if(e.key==='Enter') tryUnlock(); });
+
+// ---- 파트너 대시보드 (누적정산 + 일참여한도 겹침 현황) ----
+function computeOverlapSegments(campaigns){
+  const valid = (campaigns||[]).filter(c=>c.startAt && c.endAt);
+  if(valid.length===0) return [];
+  const toTime = s => new Date(s+'T00:00:00').getTime();
+  const startTime = Math.min(...valid.map(c=>toTime(c.startAt)));
+  const endTime = Math.max(...valid.map(c=>toTime(c.endAt)));
+  const segments = [];
+  let cur = new Date(startTime);
+  const end = new Date(endTime);
+  let segStart=null, segTotal=null, prevIso=null;
+  while(cur.getTime() <= end.getTime()){
+    const iso = cur.toISOString().slice(0,10);
+    const total = valid.reduce((s,c)=> (c.startAt<=iso && iso<=c.endAt) ? s+(Number(c.dailyQuota)||0) : s, 0);
+    if(total !== segTotal){
+      if(segStart!==null) segments.push({from:segStart, to:prevIso, total:segTotal});
+      segStart = iso; segTotal = total;
+    }
+    prevIso = iso;
+    cur.setDate(cur.getDate()+1);
+  }
+  segments.push({from:segStart, to:prevIso, total:segTotal});
+  return segments;
+}
+
+function renderPartnerDashboard(){
+  if(!currentPartner) return;
+  document.getElementById('dashPartnerName').textContent =
+    `${currentPartner.partnerId}${currentPartner.partnerName? ' ('+currentPartner.partnerName+')':''}`;
+  document.getElementById('dashTotal').textContent = fmtWon(currentPartner.total);
+  document.getElementById('dashPrice').textContent =
+    `${fmtWon(currentPartner.placePrice)} / ${fmtWon(currentPartner.shoppingPrice)}`;
+
+  const segments = computeOverlapSegments(currentPartner.campaigns);
+  const dq = document.getElementById('dashDailyQuota');
+  if(segments.length===0){
+    dq.textContent = '아직 등록된 캠페인 기록이 없습니다.';
+    return;
+  }
+  dq.innerHTML = segments.map(s=>
+    `${s.from}${s.from!==s.to? ' ~ '+s.to : ''} : 합계 ${Number(s.total).toLocaleString()}`
+  ).join('\n');
+}
+
+async function refreshPartnerDashboard(){
+  if(!currentPartner || !SETTLEMENT_URL) return;
+  try{
+    const [totalRes, campRes] = await Promise.all([
+      fetch(`${SETTLEMENT_URL}?action=getTotal&partnerId=${encodeURIComponent(currentPartner.partnerId)}`).then(r=>r.json()),
+      fetch(`${SETTLEMENT_URL}?action=getCampaigns&partnerId=${encodeURIComponent(currentPartner.partnerId)}`).then(r=>r.json())
+    ]);
+    if(totalRes.success) currentPartner.total = totalRes.total;
+    if(campRes.success) currentPartner.campaigns = campRes.campaigns;
+    renderPartnerDashboard();
+  }catch(e){
+    console.error('파트너 현황 새로고침 실패', e);
+  }
+}
+
+document.getElementById('btnCheckPrice').addEventListener('click', refreshPartnerDashboard);
 
 // ==================== 초기화 ====================
 renderAll();
