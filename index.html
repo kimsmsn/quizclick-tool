@@ -301,14 +301,14 @@
 <div id="adminRoot" style="display:none;">
   <header>
     <h1>QuizClick 관리자 화면</h1>
-    <p>구글 스프레드시트 "일일소진" 시트에 직접 입력한 데이터를 기준으로, 파트너별 배정량 / 소진량 / 미소진 현황을 확인합니다.</p>
+    <p>구글 스프레드시트 데이터를 기준으로, 파트너별 소진/충전/잔액 현황을 확인합니다. (아래 "배정/소진/미소진"은 일일소진 시트 기준의 예전 방식이고, "충전/소진금액/잔액"이 소진원본 시트 기준의 최신 방식입니다.)</p>
   </header>
   <div class="wrap">
     <div class="card">
-      <h2>파트너별 배정 / 소진 / 미소진 현황</h2>
+      <h2>파트너별 배정 / 소진 / 미소진 현황 (일일소진 시트 기준, 예전 방식)</h2>
       <div class="hint" style="margin-bottom:10px;">
-        데이터는 구글 스프레드시트의 "일일소진" 시트에서 그대로 읽어옵니다. 소진량을 추가/수정하려면
-        이 페이지가 아니라 스프레드시트를 직접 편집한 뒤 "새로고침"을 눌러주세요.
+        "일일소진" 시트를 더 이상 쓰지 않으신다면 이 카드는 참고용입니다. 실제 소진 금액/잔액은 아래
+        "파트너별 충전 / 소진금액 / 잔액" 카드(소진원본 시트 기준)를 확인해주세요.
       </div>
       <div class="actions">
         <button class="btn btn-outline" id="btnAdmRefresh">새로고침</button>
@@ -1387,25 +1387,28 @@ async function refreshAdminConsumptionDetail(){
   if(!partnerId) return;
   resEl.innerHTML = '조회 중...';
   try{
-    const res = await fetch(`${SETTLEMENT_URL}?action=getConsumptionLog&partnerId=${encodeURIComponent(partnerId)}`);
+    const res = await fetch(`${SETTLEMENT_URL}?action=getDailyConsumption&partnerId=${encodeURIComponent(partnerId)}`);
     const data = await res.json();
     if(!data.success){ resEl.innerHTML = `<div class="apiresult err">❌ ${data.error||'조회 실패'}</div>`; return; }
 
     resEl.innerHTML = '';
     const log = data.log || [];
+    if(log.length===0){
+      resEl.innerHTML = `<div class="hint">"소진원본" 시트에 이 파트너로 매칭되는 데이터가 없습니다. 파트너사 이름 표기가 일치하는지 확인해주세요.</div>`;
+    }
 
     // 표
     const table = document.getElementById('admConsumptionTable');
     table.innerHTML = '';
     const thead = document.createElement('thead');
     const trh = document.createElement('tr');
-    ['날짜','소진수량','메모'].forEach(t=>{ const th=document.createElement('th'); th.textContent=t; trh.appendChild(th); });
+    ['날짜','소진수량'].forEach(t=>{ const th=document.createElement('th'); th.textContent=t; trh.appendChild(th); });
     thead.appendChild(trh);
     table.appendChild(thead);
     const tbody = document.createElement('tbody');
     log.forEach(row=>{
       const tr=document.createElement('tr');
-      [row.date, row.amount.toLocaleString(), row.memo||''].forEach(v=>{
+      [row.date, row.amount.toLocaleString()].forEach(v=>{
         const td=document.createElement('td'); const span=document.createElement('span'); span.textContent=v; td.appendChild(span); tr.appendChild(td);
       });
       tbody.appendChild(tr);
