@@ -64,7 +64,10 @@
   .btn-outline:hover{background:#eef1f7;}
   .btn-danger{background:#fff;border:1px solid #c0392b;color:#c0392b;padding:4px 8px;font-size:11px;}
   .preview{white-space:pre-wrap;font-size:12.5px;background:#fbfaf7;border:1px dashed #d8cdb8;border-radius:8px;padding:12px;line-height:1.5;color:#3b3120;min-height:60px;}
-  .preview-label{font-size:11px;font-weight:700;color:var(--navy-2);margin:10px 0 4px;}
+  .statbox{background:#fff;border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:8px;
+    padding:10px 14px;font-size:17px;font-weight:800;color:var(--navy-2);line-height:1.3;}
+  .statbox.negative{border-left-color:#c0392b;color:#c0392b;}
+  .preview-label{font-size:11.5px;font-weight:700;color:var(--muted);margin:10px 0 5px;text-transform:uppercase;letter-spacing:.3px;}
   .list-item{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px;font-size:12.5px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px;background:#fafbfc;}
   .list-item .meta{color:var(--muted);font-size:11px;margin-top:2px;}
   .type-pill{display:inline-block;font-size:10px;background:var(--navy);color:#fff;padding:1px 7px;border-radius:10px;margin-right:6px;}
@@ -132,39 +135,39 @@
     <div class="row3" style="margin-bottom:6px;">
       <div>
         <div class="preview-label">파트너</div>
-        <div class="preview" id="dashPartnerName" style="min-height:auto;">-</div>
+        <div class="statbox" id="dashPartnerName">-</div>
       </div>
       <div>
         <div class="preview-label">누적 정산금액</div>
-        <div class="preview" id="dashTotal" style="min-height:auto;">-</div>
+        <div class="statbox" id="dashTotal">-</div>
       </div>
       <div>
-        <div class="preview-label">단가 (플레이스 / 쇼핑)</div>
-        <div class="preview" id="dashPrice" style="min-height:auto;">-</div>
+        <div class="preview-label">유형별 단가</div>
+        <div class="statbox" id="dashPrice" style="font-size:12.5px;font-weight:600;line-height:1.6;">-</div>
       </div>
     </div>
     <div class="row3" style="margin-bottom:6px;">
       <div>
         <div class="preview-label">잔액 (충전 - 소진금액)</div>
-        <div class="preview" id="dashBalance" style="min-height:auto;">-</div>
+        <div class="statbox" id="dashBalance">-</div>
       </div>
       <div>
         <div class="preview-label">미소진 (배정 - 소진수량)</div>
-        <div class="preview" id="dashRemaining" style="min-height:auto;">-</div>
+        <div class="statbox" id="dashRemaining">-</div>
       </div>
       <div>
         <div class="preview-label">최근 일소진량</div>
-        <div class="preview" id="dashRecentDaily" style="min-height:auto;">-</div>
+        <div class="statbox" id="dashRecentDaily">-</div>
       </div>
     </div>
     <div class="row3" style="margin-bottom:6px;">
       <div>
         <div class="preview-label">예상비용 (배정량 × 단가)</div>
-        <div class="preview" id="dashExpectedCost" style="min-height:auto;">-</div>
+        <div class="statbox" id="dashExpectedCost">-</div>
       </div>
       <div>
         <div class="preview-label">충전하실 금액</div>
-        <div class="preview" id="dashChargeNeeded" style="min-height:auto;">-</div>
+        <div class="statbox" id="dashChargeNeeded">-</div>
       </div>
       <div></div>
     </div>
@@ -291,8 +294,16 @@
       <h2>일참여한도 현황 (내 캠페인 기간 겹침 기준)</h2>
       <div class="hint" style="margin-bottom:10px;">
         등록된 캠페인들의 시작일~종료일이 겹치는 구간마다, 그 날짜의 일참여한도를 모두 더해서 보여줍니다.
+        지난 날짜는 자동으로 숨기고, 기본으로 오늘부터 10일치만 보여줍니다. 필요하면 기간을 직접 바꿔서 조회하세요.
       </div>
-      <div style="position:relative;width:100%;height:280px;">
+      <div class="row3">
+        <div class="field"><label>시작일</label><input type="date" id="dqFromDate"></div>
+        <div class="field"><label>종료일</label><input type="date" id="dqToDate"></div>
+        <div class="field" style="display:flex;align-items:flex-end;">
+          <button class="btn btn-outline" id="btnDqRangeQuery" style="width:100%;">기간 조회</button>
+        </div>
+      </div>
+      <div style="position:relative;width:100%;height:280px;margin-top:10px;">
         <canvas id="dailyQuotaChart"></canvas>
       </div>
       <div class="actions">
@@ -306,6 +317,20 @@
       <h2>내 소진 현황</h2>
       <div class="hint" style="margin-bottom:10px;">
         실제 소진 리포트("소진원본" 시트) 기준입니다. 위 일참여한도 현황(등록 기준)과는 다른 수치입니다.
+      </div>
+      <div class="row3" style="margin-bottom:10px;">
+        <div>
+          <div class="preview-label">미소진 (배정 - 소진수량)</div>
+          <div class="statbox" id="myRemaining">-</div>
+        </div>
+        <div>
+          <div class="preview-label">누적 소진금액</div>
+          <div class="statbox" id="myConsumedAmount">-</div>
+        </div>
+        <div>
+          <div class="preview-label">최근 일소진량</div>
+          <div class="statbox" id="myLatestDaily">-</div>
+        </div>
       </div>
       <div style="position:relative;width:100%;height:240px;">
         <canvas id="myConsumptionChart"></canvas>
@@ -1214,6 +1239,13 @@ const SHOPPING_TYPES = ['NSN4']; // 쇼핑단가를 적용할 타입 (Apps Scrip
 function isShoppingType(type){ return SHOPPING_TYPES.indexOf(type) !== -1; }
 function fmtWon(n){ return '₩' + Number(n||0).toLocaleString(); }
 
+function renderPricesList(prices){
+  if(!prices) return '단가 정보 없음';
+  const entries = Object.entries(prices);
+  if(entries.length===0) return '단가 정보 없음';
+  return entries.map(([cat, price]) => `${cat}: ${fmtWon(price)}`).join(' · ');
+}
+
 function renderSettlementResult(html){
   document.getElementById('settlementResult').innerHTML = html;
 }
@@ -1265,7 +1297,7 @@ async function runSettlementFlow(items, source){
 
 // ==================== 파트너 키 / 관리자 로그인 ====================
 // 담당자: 배포 시 이 값만 실제 Apps Script 웹앱 URL로 바꿔주세요.
-const SETTLEMENT_URL = "https://script.google.com/macros/s/AKfycbxHkHqxcspiT6xBG-AReSX_1PrfDncq1m5QLZN5TiqEYlX7RUDDNQaQel2Tz2gJMtYHvA/exec";
+const SETTLEMENT_URL = "https://script.google.com/macros/s/AKfycbxb0mkUyTUGRQH4gqD9y3U0tpjh7pxKAf7MesfrMxRqJfqJsK6abJ2oZteYHuSgJBQxCw/exec";
 // 담당자: 관리자 전용 키. 파트너 키와 겹치지 않는 값으로 바꿔서 사용하세요.
 const ADMIN_KEY = "wkahdfoq";
 
@@ -1287,8 +1319,13 @@ function resetSessionState(){
   document.getElementById('dailyQuotaTable').textContent='데이터가 없습니다.';
   document.getElementById('myRangeSummary').textContent='기간을 선택하고 "기간 조회"를 눌러주세요.';
   document.getElementById('myConsumptionTable').innerHTML='';
+  document.getElementById('myRemaining').textContent='-';
+  document.getElementById('myConsumedAmount').textContent='-';
+  document.getElementById('myLatestDaily').textContent='-';
   document.getElementById('myFromDate').value='';
   document.getElementById('myToDate').value='';
+  document.getElementById('dqFromDate').value='';
+  document.getElementById('dqToDate').value='';
 
   renderList();
   setMode('individual'); // 서브탭을 기본값으로 복귀
@@ -1343,12 +1380,15 @@ document.getElementById('btnLogoutPartner').addEventListener('click', logout);
 document.getElementById('btnLogoutAdmin').addEventListener('click', logout);
 
 // ---- 파트너 대시보드 (누적정산 + 일참여한도 겹침 현황) ----
-function computeOverlapSegments(campaigns){
+function computeOverlapSegments(campaigns, fromDate, toDate){
   const valid = (campaigns||[]).filter(c=>c.startAt && c.endAt);
   if(valid.length===0) return [];
   const toTime = s => new Date(s+'T00:00:00').getTime();
-  const startTime = Math.min(...valid.map(c=>toTime(c.startAt)));
-  const endTime = Math.max(...valid.map(c=>toTime(c.endAt)));
+  let startTime = Math.min(...valid.map(c=>toTime(c.startAt)));
+  let endTime = Math.max(...valid.map(c=>toTime(c.endAt)));
+  if(fromDate) startTime = Math.max(startTime, toTime(fromDate));
+  if(toDate) endTime = Math.min(endTime, toTime(toDate));
+  if(startTime > endTime) return [];
   const segments = [];
   let cur = new Date(startTime);
   const end = new Date(endTime);
@@ -1372,19 +1412,19 @@ function renderPartnerDashboard(){
   document.getElementById('dashPartnerName').textContent =
     `${currentPartner.partnerId}${currentPartner.partnerName? ' ('+currentPartner.partnerName+')':''}`;
   document.getElementById('dashTotal').textContent = fmtWon(currentPartner.total);
-  document.getElementById('dashPrice').textContent =
-    `${fmtWon(currentPartner.placePrice)} / ${fmtWon(currentPartner.shoppingPrice)}`;
+  document.getElementById('dashPrice').innerHTML = renderPricesList(currentPartner.prices);
 
   const status = currentPartner.status;
   if(status){
-    document.getElementById('dashBalance').textContent = fmtWon(status.balance);
+    const balEl = document.getElementById('dashBalance');
+    balEl.textContent = fmtWon(status.balance);
+    balEl.classList.toggle('negative', status.balance<0);
     document.getElementById('dashRemaining').textContent = Number(status.remaining||0).toLocaleString();
     document.getElementById('dashExpectedCost').textContent = fmtWon(status.expectedCost);
     const chargeNeeded = status.chargeNeeded || 0;
     const chargeEl = document.getElementById('dashChargeNeeded');
     chargeEl.textContent = fmtWon(chargeNeeded);
-    chargeEl.style.color = chargeNeeded>0 ? '#c0392b' : '';
-    chargeEl.style.fontWeight = chargeNeeded>0 ? '700' : '';
+    chargeEl.classList.toggle('negative', chargeNeeded>0);
     const daily = status.dailyConsumption || [];
     const recent = daily.slice(-1)[0];
     document.getElementById('dashRecentDaily').textContent = recent
@@ -1473,14 +1513,16 @@ document.getElementById('accountSelect').addEventListener('change', renderAccoun
 async function refreshPartnerDashboard(){
   if(!currentPartner || !SETTLEMENT_URL) return;
   try{
-    const [totalRes, campRes, statusRes] = await Promise.all([
+    const [totalRes, campRes, statusRes, pricesRes] = await Promise.all([
       fetch(`${SETTLEMENT_URL}?action=getTotal&partnerId=${encodeURIComponent(currentPartner.partnerId)}`).then(r=>r.json()),
       fetch(`${SETTLEMENT_URL}?action=getCampaigns&partnerId=${encodeURIComponent(currentPartner.partnerId)}`).then(r=>r.json()),
-      fetch(`${SETTLEMENT_URL}?action=getPartnerFullStatus&partnerId=${encodeURIComponent(currentPartner.partnerId)}`).then(r=>r.json())
+      fetch(`${SETTLEMENT_URL}?action=getPartnerFullStatus&partnerId=${encodeURIComponent(currentPartner.partnerId)}`).then(r=>r.json()),
+      fetch(`${SETTLEMENT_URL}?action=getPartnerPrices&partnerId=${encodeURIComponent(currentPartner.partnerId)}`).then(r=>r.json())
     ]);
     if(totalRes.success) currentPartner.total = totalRes.total;
     if(campRes.success) currentPartner.campaigns = campRes.campaigns;
     if(statusRes.success) currentPartner.status = statusRes.status;
+    if(pricesRes.success) currentPartner.prices = pricesRes.prices;
 
     if(currentPartner.children && currentPartner.children.length){
       const childStatuses = await Promise.all(currentPartner.children.map(c=>
@@ -1498,13 +1540,19 @@ async function refreshPartnerDashboard(){
 document.getElementById('btnCheckPrice').addEventListener('click', refreshPartnerDashboard);
 
 // ==================== 일참여한도 현황 탭 (일별 그래프) ====================
-function computeDailySeries(campaigns){
+function todayIso(){ return new Date().toISOString().slice(0,10); }
+function addDaysIso(iso, n){ const d = new Date(iso+'T00:00:00'); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
+
+function computeDailySeries(campaigns, fromDate, toDate){
   const valid = (campaigns||[]).filter(c=>c.startAt && c.endAt);
   if(valid.length===0) return {labels:[], totals:[]};
   const toTime = s => new Date(s+'T00:00:00').getTime();
-  const startTime = Math.min(...valid.map(c=>toTime(c.startAt)));
-  const endTime = Math.max(...valid.map(c=>toTime(c.endAt)));
+  let startTime = Math.min(...valid.map(c=>toTime(c.startAt)));
+  let endTime = Math.max(...valid.map(c=>toTime(c.endAt)));
+  if(fromDate) startTime = Math.max(startTime, toTime(fromDate));
+  if(toDate) endTime = Math.min(endTime, toTime(toDate));
   const labels=[], totals=[];
+  if(startTime > endTime) return {labels, totals};
   let cur = new Date(startTime);
   const end = new Date(endTime);
   while(cur.getTime() <= end.getTime()){
@@ -1520,11 +1568,21 @@ function computeDailySeries(campaigns){
 let dailyQuotaChartInstance = null;
 function renderDailyQuotaTab(){
   if(!currentPartner) return;
-  const {labels, totals} = computeDailySeries(currentPartner.campaigns);
-  const segments = computeOverlapSegments(currentPartner.campaigns);
+
+  const fromEl = document.getElementById('dqFromDate');
+  const toEl = document.getElementById('dqToDate');
+  // 기본값: 지난 날짜는 숨기고 오늘부터 10일치만 (한 번만 세팅)
+  if(!fromEl.value) fromEl.value = todayIso();
+  if(!toEl.value) toEl.value = addDaysIso(fromEl.value, 9);
+
+  const fromDate = fromEl.value;
+  const toDate = toEl.value;
+
+  const {labels, totals} = computeDailySeries(currentPartner.campaigns, fromDate, toDate);
+  const segments = computeOverlapSegments(currentPartner.campaigns, fromDate, toDate);
 
   const tableEl = document.getElementById('dailyQuotaTable');
-  tableEl.innerHTML = segments.length===0 ? '데이터가 없습니다.' :
+  tableEl.innerHTML = segments.length===0 ? '해당 기간에 데이터가 없습니다.' :
     segments.map(s=> `${s.from}${s.from!==s.to? ' ~ '+s.to : ''} : 합계 ${Number(s.total).toLocaleString()}`).join('\n');
 
   if(typeof Chart === 'undefined') return;
@@ -1544,6 +1602,8 @@ function renderDailyQuotaTab(){
   });
 }
 
+document.getElementById('btnDqRangeQuery').addEventListener('click', renderDailyQuotaTab);
+
 document.getElementById('btnDailyRefresh').addEventListener('click', async ()=>{
   await refreshPartnerDashboard();
   renderDailyQuotaTab();
@@ -1554,7 +1614,16 @@ document.getElementById('btnDailyRefresh').addEventListener('click', async ()=>{
 let myConsumptionChartInstance = null;
 function renderMyConsumptionChart(){
   if(!currentPartner || !currentPartner.status) return;
-  const log = currentPartner.status.dailyConsumption || [];
+  const status = currentPartner.status;
+  const log = status.dailyConsumption || [];
+
+  document.getElementById('myRemaining').textContent = Number(status.remaining||0).toLocaleString();
+  document.getElementById('myConsumedAmount').textContent = fmtWon(status.consumedAmount);
+  const recent = log.slice(-1)[0];
+  document.getElementById('myLatestDaily').textContent = recent
+    ? `${recent.date} : ${Number(recent.amount).toLocaleString()}`
+    : '데이터 없음';
+
   if(typeof Chart === 'undefined') return;
   const ctx = document.getElementById('myConsumptionChart');
   if(myConsumptionChartInstance) myConsumptionChartInstance.destroy();
@@ -1695,7 +1764,7 @@ function renderMoneyTable(overview){
     const tr = document.createElement('tr');
     const chargeNeeded = row.chargeNeeded || 0;
     [
-      row.partnerId, row.partnerName||'-', row.consumedQty.toLocaleString(),
+      row.partnerId, `${row.partnerName||'-'}${row.hasChildren? ' 👥(자계정 합산)':''}`, row.consumedQty.toLocaleString(),
       fmtWon(row.consumedAmount), fmtWon(row.expectedCost), fmtWon(row.charged),
       fmtWon(chargeNeeded), fmtWon(row.balance)
     ].forEach((v,i)=>{
