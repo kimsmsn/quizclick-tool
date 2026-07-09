@@ -1231,6 +1231,30 @@ const ADMIN_KEY = "kimsman";
 
 let currentPartner = null; // {partnerId, partnerName, placePrice, shoppingPrice, total, campaigns}
 
+function resetSessionState(){
+  campaigns = [];
+  gridByType = {};
+  currentType = 'NPD0';
+
+  if(dailyQuotaChartInstance){ dailyQuotaChartInstance.destroy(); dailyQuotaChartInstance = null; }
+  if(myConsumptionChartInstance){ myConsumptionChartInstance.destroy(); myConsumptionChartInstance = null; }
+
+  document.getElementById('jsonOut').style.display='none';
+  document.getElementById('jsonActions').style.display='none';
+  document.getElementById('jsonOut').value='';
+  document.getElementById('apiResult').innerHTML='';
+  document.getElementById('settlementResult').innerHTML='';
+  document.getElementById('dailyQuotaTable').textContent='데이터가 없습니다.';
+  document.getElementById('myRangeSummary').textContent='기간을 선택하고 "기간 조회"를 눌러주세요.';
+  document.getElementById('myConsumptionTable').innerHTML='';
+  document.getElementById('myFromDate').value='';
+  document.getElementById('myToDate').value='';
+
+  renderList();
+  setMode('individual'); // 탭/화면 표시를 기본값으로 복귀
+  renderAll(); // 타입탭·입력폼을 기본 타입(NPD0) 기준으로 다시 그림
+}
+
 async function tryUnlock(){
   const key = document.getElementById('lockPw').value.trim();
   const errEl = document.getElementById('lockErr');
@@ -1253,6 +1277,7 @@ async function tryUnlock(){
       return;
     }
     currentPartner = data;
+    resetSessionState(); // 이전 파트너 세션에서 남아있던 데이터/그래프를 전부 초기화
     document.getElementById('lockScreen').style.display = 'none';
     document.getElementById('appRoot').style.display = 'block';
     document.getElementById('f_advertiserId').value = data.partnerId;
@@ -1266,6 +1291,7 @@ document.getElementById('lockPw').addEventListener('keydown', (e)=>{ if(e.key===
 
 function logout(){
   currentPartner = null;
+  resetSessionState(); // 다음 사람이 로그인했을 때 이전 데이터가 안 보이도록 미리 정리
   document.getElementById('appRoot').style.display = 'none';
   document.getElementById('adminRoot').style.display = 'none';
   document.getElementById('lockScreen').style.display = 'flex';
