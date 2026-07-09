@@ -157,8 +157,27 @@
         <div class="preview" id="dashRecentDaily" style="min-height:auto;">-</div>
       </div>
     </div>
+    <div class="row3" style="margin-bottom:6px;">
+      <div>
+        <div class="preview-label">예상비용 (배정량 × 단가)</div>
+        <div class="preview" id="dashExpectedCost" style="min-height:auto;">-</div>
+      </div>
+      <div>
+        <div class="preview-label">충전하실 금액</div>
+        <div class="preview" id="dashChargeNeeded" style="min-height:auto;">-</div>
+      </div>
+      <div></div>
+    </div>
     <div class="preview-label">일참여한도 현황 (내 캠페인 기간이 겹치는 구간별 합계)</div>
     <div id="dashDailyQuota" class="preview">캠페인을 등록하면 여기에 표시됩니다.</div>
+
+    <div id="accountSelectWrap" style="display:none;margin-top:16px;">
+      <div class="field" style="max-width:340px;">
+        <label>파트너 선택 <span class="badge opt">모계정 전용 · 자계정/합계 조회</span></label>
+        <select id="accountSelect"></select>
+      </div>
+      <div class="preview" id="accountSelectSummary" style="margin-top:8px;">-</div>
+    </div>
   </div>
 
   <div id="categoryRegister">
@@ -365,26 +384,12 @@
     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
       <div>
         <h1>QuizClick 관리자 화면</h1>
-        <p>구글 스프레드시트 데이터를 기준으로, 파트너별 소진/충전/잔액 현황을 확인합니다. (아래 "배정/소진/미소진"은 일일소진 시트 기준의 예전 방식이고, "충전/소진금액/잔액"이 소진원본 시트 기준의 최신 방식입니다.)</p>
+        <p>구글 스프레드시트("소진원본"/"파트너단가"/"충전내역") 데이터를 기준으로, 파트너별 예상비용/소진/충전/잔액 현황을 확인합니다.</p>
       </div>
       <button class="btn btn-outline" id="btnLogoutAdmin" style="background:#fff;margin-top:2px;">로그아웃</button>
     </div>
   </header>
   <div class="wrap">
-    <div class="card">
-      <h2>파트너별 배정 / 소진 / 미소진 현황 (일일소진 시트 기준, 예전 방식)</h2>
-      <div class="hint" style="margin-bottom:10px;">
-        "일일소진" 시트를 더 이상 쓰지 않으신다면 이 카드는 참고용입니다. 실제 소진 금액/잔액은 아래
-        "파트너별 충전 / 소진금액 / 잔액" 카드(소진원본 시트 기준)를 확인해주세요.
-      </div>
-      <div class="actions">
-        <button class="btn btn-outline" id="btnAdmRefresh">새로고침</button>
-      </div>
-      <div class="gridwrap" style="margin-top:10px;">
-        <table class="grid" id="admOverviewTable"></table>
-      </div>
-    </div>
-
     <div class="card">
       <h2>파트너별 충전 / 소진금액 / 잔액</h2>
       <div class="hint" style="margin-bottom:10px;">
@@ -1260,7 +1265,7 @@ async function runSettlementFlow(items, source){
 
 // ==================== 파트너 키 / 관리자 로그인 ====================
 // 담당자: 배포 시 이 값만 실제 Apps Script 웹앱 URL로 바꿔주세요.
-const SETTLEMENT_URL = "https://script.google.com/macros/s/AKfycbyHE1xH63PnCE2eT1WYlnKGqNnsVJMtJG2YzdJAgC_-VvkbjV-e2oZ8bl61-ksxXJ4zIw/exec";
+const SETTLEMENT_URL = "https://script.google.com/macros/s/AKfycbxHkHqxcspiT6xBG-AReSX_1PrfDncq1m5QLZN5TiqEYlX7RUDDNQaQel2Tz2gJMtYHvA/exec";
 // 담당자: 관리자 전용 키. 파트너 키와 겹치지 않는 값으로 바꿔서 사용하세요.
 const ADMIN_KEY = "wkahdfoq";
 
@@ -1374,6 +1379,12 @@ function renderPartnerDashboard(){
   if(status){
     document.getElementById('dashBalance').textContent = fmtWon(status.balance);
     document.getElementById('dashRemaining').textContent = Number(status.remaining||0).toLocaleString();
+    document.getElementById('dashExpectedCost').textContent = fmtWon(status.expectedCost);
+    const chargeNeeded = status.chargeNeeded || 0;
+    const chargeEl = document.getElementById('dashChargeNeeded');
+    chargeEl.textContent = fmtWon(chargeNeeded);
+    chargeEl.style.color = chargeNeeded>0 ? '#c0392b' : '';
+    chargeEl.style.fontWeight = chargeNeeded>0 ? '700' : '';
     const daily = status.dailyConsumption || [];
     const recent = daily.slice(-1)[0];
     document.getElementById('dashRecentDaily').textContent = recent
@@ -1391,7 +1402,73 @@ function renderPartnerDashboard(){
     ).join('\n');
   }
 
+  renderAccountSelector();
 }
+
+// ---- 모계정 전용: 자계정/합계 선택 조회 ----
+function aggregateStatuses(list){
+  let allocated=0, consumedQty=0, charged=0, consumedAmount=0, expectedCost=0;
+  const dailyMap = {};
+  list.forEach(st=>{
+    if(!st) return;
+    allocated += Number(st.allocated||0);
+    consumedQty += Number(st.consumedQty||0);
+    charged += Number(st.charged||0);
+    consumedAmount += Number(st.consumedAmount||0);
+    expectedCost += Number(st.expectedCost||0);
+    (st.dailyConsumption||[]).forEach(d=>{ dailyMap[d.date] = (dailyMap[d.date]||0) + Number(d.amount||0); });
+  });
+  const dailyConsumption = Object.keys(dailyMap).sort().map(date=>({date, amount:dailyMap[date]}));
+  return {
+    allocated, consumedQty, remaining: allocated-consumedQty,
+    charged, consumedAmount, balance: charged-consumedAmount,
+    expectedCost, chargeNeeded: Math.max(expectedCost-charged, 0),
+    dailyConsumption
+  };
+}
+
+function getStatusForAccount(value){
+  if(value==='self') return currentPartner.status;
+  if(value==='__all__') return aggregateStatuses([currentPartner.status, ...(currentPartner.childrenStatus||[])]);
+  const idx = (currentPartner.children||[]).findIndex(c=>c.partnerId===value);
+  return idx>=0 ? (currentPartner.childrenStatus||[])[idx] : null;
+}
+
+function renderAccountSummary(){
+  const sel = document.getElementById('accountSelect');
+  const status = getStatusForAccount(sel.value || 'self');
+  const el = document.getElementById('accountSelectSummary');
+  if(!status){ el.textContent = '데이터 없음'; return; }
+  el.innerHTML = `소진금액: ${fmtWon(status.consumedAmount)} · 미소진: ${Number(status.remaining||0).toLocaleString()} · `+
+    `잔액: ${fmtWon(status.balance)} · 예상비용: ${fmtWon(status.expectedCost)} · `+
+    `충전하실 금액: <span style="${(status.chargeNeeded||0)>0? 'color:#c0392b;font-weight:700;':''}">${fmtWon(status.chargeNeeded)}</span>`;
+}
+
+function renderAccountSelector(){
+  const wrap = document.getElementById('accountSelectWrap');
+  const children = currentPartner.children || [];
+  if(children.length===0){ wrap.style.display='none'; return; }
+  wrap.style.display='block';
+
+  const sel = document.getElementById('accountSelect');
+  const prevValue = sel.value;
+  sel.innerHTML = '';
+  const optSelf = document.createElement('option');
+  optSelf.value='self'; optSelf.textContent=`내 계정 (${currentPartner.partnerId})`;
+  sel.appendChild(optSelf);
+  children.forEach(c=>{
+    const op=document.createElement('option');
+    op.value=c.partnerId; op.textContent=`${c.partnerId}${c.partnerName? ' ('+c.partnerName+')':''}`;
+    sel.appendChild(op);
+  });
+  const optAll = document.createElement('option');
+  optAll.value='__all__'; optAll.textContent='전체 합계 (본인 + 모든 자계정)';
+  sel.appendChild(optAll);
+
+  if(prevValue) sel.value = prevValue;
+  renderAccountSummary();
+}
+document.getElementById('accountSelect').addEventListener('change', renderAccountSummary);
 
 async function refreshPartnerDashboard(){
   if(!currentPartner || !SETTLEMENT_URL) return;
@@ -1528,10 +1605,7 @@ document.getElementById('btnMyRangeQuery').addEventListener('click', ()=>{
 async function refreshAdminOverview(){
   const resEl = document.getElementById('admResult');
   try{
-    const [partnersRes, overviewRes] = await Promise.all([
-      fetch(`${SETTLEMENT_URL}?action=getAllPartners`).then(r=>r.json()),
-      fetch(`${SETTLEMENT_URL}?action=getAdminOverview`).then(r=>r.json())
-    ]);
+    const partnersRes = await fetch(`${SETTLEMENT_URL}?action=getAllPartners`).then(r=>r.json());
 
     if(partnersRes.success){
       const sel = document.getElementById('admPartnerSelect');
@@ -1542,37 +1616,12 @@ async function refreshAdminOverview(){
       if(prevValue) sel.value = prevValue;
     }
 
-    if(overviewRes.success){
-      renderAdminOverviewTable(overviewRes.overview);
-    }
-
     if(document.getElementById('admPartnerSelect').value){
       await refreshAdminConsumptionDetail();
     }
   }catch(e){
     resEl.innerHTML = `<div class="apiresult err">현황 조회 실패: ${e.message}</div>`;
   }
-}
-
-function renderAdminOverviewTable(overview){
-  const table = document.getElementById('admOverviewTable');
-  table.innerHTML = '';
-  const thead = document.createElement('thead');
-  const trh = document.createElement('tr');
-  ['파트너ID','파트너명','배정량(전체참여한도 합계)','누적 소진','미소진'].forEach(t=>{
-    const th=document.createElement('th'); th.textContent=t; trh.appendChild(th);
-  });
-  thead.appendChild(trh);
-  table.appendChild(thead);
-
-  const tbody = document.createElement('tbody');
-  overview.forEach(row=>{
-    const tr = document.createElement('tr');
-    [row.partnerId, row.partnerName||'-', row.allocated.toLocaleString(), row.consumed.toLocaleString(), row.remaining.toLocaleString()]
-      .forEach(v=>{ const td=document.createElement('td'); const span=document.createElement('span'); span.textContent=v; td.appendChild(span); tr.appendChild(td); });
-    tbody.appendChild(tr);
-  });
-  table.appendChild(tbody);
 }
 
 async function fetchPartnerDailyLog(partnerId){
@@ -1627,7 +1676,6 @@ document.getElementById('btnAdmRangeQuery').addEventListener('click', async ()=>
   }
 });
 
-document.getElementById('btnAdmRefresh').addEventListener('click', refreshAdminOverview);
 document.getElementById('admPartnerSelect').addEventListener('change', refreshAdminConsumptionDetail);
 
 // ==================== 파트너별 충전 / 소진금액 / 잔액 ====================
@@ -1636,7 +1684,7 @@ function renderMoneyTable(overview){
   table.innerHTML = '';
   const thead = document.createElement('thead');
   const trh = document.createElement('tr');
-  ['파트너ID','파트너명','소진수량','소진금액','충전금액','잔액'].forEach(t=>{
+  ['파트너ID','파트너명','소진수량','소진금액','예상비용','충전금액','충전하실 금액','잔액'].forEach(t=>{
     const th=document.createElement('th'); th.textContent=t; trh.appendChild(th);
   });
   thead.appendChild(trh);
@@ -1645,10 +1693,16 @@ function renderMoneyTable(overview){
   const tbody = document.createElement('tbody');
   overview.forEach(row=>{
     const tr = document.createElement('tr');
+    const chargeNeeded = row.chargeNeeded || 0;
     [
       row.partnerId, row.partnerName||'-', row.consumedQty.toLocaleString(),
-      fmtWon(row.consumedAmount), fmtWon(row.charged), fmtWon(row.balance)
-    ].forEach(v=>{ const td=document.createElement('td'); const span=document.createElement('span'); span.textContent=v; td.appendChild(span); tr.appendChild(td); });
+      fmtWon(row.consumedAmount), fmtWon(row.expectedCost), fmtWon(row.charged),
+      fmtWon(chargeNeeded), fmtWon(row.balance)
+    ].forEach((v,i)=>{
+      const td=document.createElement('td'); const span=document.createElement('span'); span.textContent=v;
+      if(i===6 && chargeNeeded>0){ span.style.color='#c0392b'; span.style.fontWeight='700'; }
+      td.appendChild(span); tr.appendChild(td);
+    });
     tbody.appendChild(tr);
   });
   table.appendChild(tbody);
