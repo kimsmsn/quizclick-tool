@@ -22,9 +22,19 @@
   header p{margin:6px 0 0;font-size:13px;color:#b9c3da;}
   .wrap{max-width:1320px;margin:0 auto;padding:24px 24px 60px;}
 
-  .modetabs{display:flex;gap:10px;margin-bottom:18px;}
-  .modetab{padding:12px 22px;border-radius:9px;background:#fff;border:1px solid var(--line);cursor:pointer;font-size:14px;font-weight:700;color:var(--muted);}
-  .modetab.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .app-shell{display:flex;gap:20px;align-items:flex-start;}
+  .sidebar{width:150px;flex-shrink:0;display:flex;flex-direction:column;gap:8px;position:sticky;top:20px;}
+  .navitem{padding:14px 12px;border-radius:9px;background:#fff;border:1px solid var(--line);cursor:pointer;
+    font-size:13px;font-weight:700;color:var(--muted);text-align:center;line-height:1.4;}
+  .navitem .navsub{font-size:11px;font-weight:500;}
+  .navitem.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .navitem.active .navsub{color:#fff;}
+  .app-main{flex:1;min-width:0;}
+  @media (max-width:800px){
+    .app-shell{flex-direction:column;}
+    .sidebar{width:100%;flex-direction:row;position:static;}
+    .navitem{flex:1;}
+  }
 
   .layout{display:grid;grid-template-columns:1.5fr 1fr;gap:20px;align-items:start;}
   @media (max-width:1000px){.layout{grid-template-columns:1fr;}}
@@ -109,6 +119,13 @@
 </header>
 
 <div class="wrap">
+<div class="app-shell">
+  <nav class="sidebar">
+    <div class="navitem active" id="catRegister">캠페인<br><span class="navsub">등록</span></div>
+    <div class="navitem" id="catReport">현황<br><span class="navsub">리포트</span></div>
+    <div class="navitem" id="catSettlement">정산 &amp;<br><span class="navsub">결과</span></div>
+  </nav>
+  <div class="app-main">
 
   <div class="card" id="partnerDashboard">
     <h2>내 파트너 현황</h2>
@@ -144,15 +161,15 @@
     <div id="dashDailyQuota" class="preview">캠페인을 등록하면 여기에 표시됩니다.</div>
   </div>
 
-  <div class="modetabs">
-    <div class="modetab active" id="modeIndividual">개별 등록</div>
-    <div class="modetab" id="modeBulk">일괄 등록 (엑셀형태)</div>
-    <div class="modetab" id="modeDaily">일참여한도 현황</div>
-  </div>
-
+  <div id="categoryRegister">
   <div class="card">
     <h2 style="border:none;margin:0;padding:0;">캠페인 타입</h2>
     <div class="tabs" id="typeTabs" style="margin-top:12px;"></div>
+  </div>
+
+  <div class="tabs" style="margin-bottom:18px;">
+    <div class="tab active" id="modeIndividual">개별 등록</div>
+    <div class="tab" id="modeBulk">일괄 등록 (엑셀형태)</div>
   </div>
 
   <div class="layout">
@@ -233,45 +250,6 @@
         </div>
       </div>
 
-      <!-- 일참여한도 현황 모드 -->
-      <div id="dailyMode" style="display:none;">
-        <div class="card">
-          <h2>일참여한도 현황 (내 캠페인 기간 겹침 기준)</h2>
-          <div class="hint" style="margin-bottom:10px;">
-            등록된 캠페인들의 시작일~종료일이 겹치는 구간마다, 그 날짜의 일참여한도를 모두 더해서 보여줍니다.
-          </div>
-          <div style="position:relative;width:100%;height:280px;">
-            <canvas id="dailyQuotaChart"></canvas>
-          </div>
-          <div class="actions">
-            <button class="btn btn-outline" id="btnDailyRefresh">새로고침</button>
-          </div>
-          <div class="preview-label" style="margin-top:16px;">구간별 합계 표</div>
-          <div id="dailyQuotaTable" class="preview">데이터가 없습니다.</div>
-        </div>
-
-        <div class="card">
-          <h2>내 소진 현황</h2>
-          <div class="hint" style="margin-bottom:10px;">
-            실제 소진 리포트("소진원본" 시트) 기준입니다. 위 일참여한도 현황(등록 기준)과는 다른 수치입니다.
-          </div>
-          <div style="position:relative;width:100%;height:240px;">
-            <canvas id="myConsumptionChart"></canvas>
-          </div>
-          <div class="row3" style="margin-top:12px;">
-            <div class="field"><label>시작일</label><input type="date" id="myFromDate"></div>
-            <div class="field"><label>종료일</label><input type="date" id="myToDate"></div>
-            <div class="field" style="display:flex;align-items:flex-end;">
-              <button class="btn btn-outline" id="btnMyRangeQuery" style="width:100%;">기간 조회</button>
-            </div>
-          </div>
-          <div id="myRangeSummary" class="preview" style="margin-top:10px;">기간을 선택하고 "기간 조회"를 눌러주세요.</div>
-          <div class="gridwrap" style="margin-top:10px;">
-            <table class="grid" id="myConsumptionTable"></table>
-          </div>
-        </div>
-      </div>
-
     </div>
 
     <!-- 오른쪽 -->
@@ -287,7 +265,47 @@
       </div>
     </div>
   </div>
+  </div> <!-- /categoryRegister -->
 
+  <div id="categoryReport" style="display:none;">
+    <div class="card">
+      <h2>일참여한도 현황 (내 캠페인 기간 겹침 기준)</h2>
+      <div class="hint" style="margin-bottom:10px;">
+        등록된 캠페인들의 시작일~종료일이 겹치는 구간마다, 그 날짜의 일참여한도를 모두 더해서 보여줍니다.
+      </div>
+      <div style="position:relative;width:100%;height:280px;">
+        <canvas id="dailyQuotaChart"></canvas>
+      </div>
+      <div class="actions">
+        <button class="btn btn-outline" id="btnDailyRefresh">새로고침</button>
+      </div>
+      <div class="preview-label" style="margin-top:16px;">구간별 합계 표</div>
+      <div id="dailyQuotaTable" class="preview">데이터가 없습니다.</div>
+    </div>
+
+    <div class="card">
+      <h2>내 소진 현황</h2>
+      <div class="hint" style="margin-bottom:10px;">
+        실제 소진 리포트("소진원본" 시트) 기준입니다. 위 일참여한도 현황(등록 기준)과는 다른 수치입니다.
+      </div>
+      <div style="position:relative;width:100%;height:240px;">
+        <canvas id="myConsumptionChart"></canvas>
+      </div>
+      <div class="row3" style="margin-top:12px;">
+        <div class="field"><label>시작일</label><input type="date" id="myFromDate"></div>
+        <div class="field"><label>종료일</label><input type="date" id="myToDate"></div>
+        <div class="field" style="display:flex;align-items:flex-end;">
+          <button class="btn btn-outline" id="btnMyRangeQuery" style="width:100%;">기간 조회</button>
+        </div>
+      </div>
+      <div id="myRangeSummary" class="preview" style="margin-top:10px;">기간을 선택하고 "기간 조회"를 눌러주세요.</div>
+      <div class="gridwrap" style="margin-top:10px;">
+        <table class="grid" id="myConsumptionTable"></table>
+      </div>
+    </div>
+  </div> <!-- /categoryReport -->
+
+  <div id="categorySettlement" style="display:none;">
   <div class="bottomrow">
     <div class="card">
       <h2>등록 대기 목록 (<span id="listCount">0</span>건)</h2>
@@ -335,6 +353,10 @@
       <div id="settlementResult"></div>
     </div>
   </div>
+  </div> <!-- /categorySettlement -->
+
+  </div>
+</div>
 </div>
 </div>
 
@@ -682,18 +704,31 @@ function tryAddCampaign(typeKey, row){
 // ==================== 모드 탭 ====================
 document.getElementById('modeIndividual').addEventListener('click', ()=> setMode('individual'));
 document.getElementById('modeBulk').addEventListener('click', ()=> setMode('bulk'));
-document.getElementById('modeDaily').addEventListener('click', ()=> setMode('daily'));
 function setMode(mode){
   currentMode = mode;
   document.getElementById('modeIndividual').classList.toggle('active', mode==='individual');
   document.getElementById('modeBulk').classList.toggle('active', mode==='bulk');
-  document.getElementById('modeDaily').classList.toggle('active', mode==='daily');
   document.getElementById('individualMode').style.display = mode==='individual' ? 'block':'none';
   document.getElementById('bulkMode').style.display = mode==='bulk' ? 'block':'none';
-  document.getElementById('dailyMode').style.display = mode==='daily' ? 'block':'none';
   document.getElementById('previewCard').style.display = mode==='individual' ? 'block':'none';
   if(mode==='bulk') renderGrid();
-  if(mode==='daily'){ renderDailyQuotaTab(); renderMyConsumptionChart(); }
+}
+
+// ==================== 카테고리(대분류) ====================
+document.getElementById('catRegister').addEventListener('click', ()=> setCategory('register'));
+document.getElementById('catReport').addEventListener('click', ()=> setCategory('report'));
+document.getElementById('catSettlement').addEventListener('click', ()=> setCategory('settlement'));
+let currentCategory = 'register';
+function setCategory(cat){
+  currentCategory = cat;
+  document.getElementById('catRegister').classList.toggle('active', cat==='register');
+  document.getElementById('catReport').classList.toggle('active', cat==='report');
+  document.getElementById('catSettlement').classList.toggle('active', cat==='settlement');
+  document.getElementById('categoryRegister').style.display = cat==='register' ? 'block':'none';
+  document.getElementById('categoryReport').style.display = cat==='report' ? 'block':'none';
+  document.getElementById('categorySettlement').style.display = cat==='settlement' ? 'block':'none';
+  if(cat==='register' && currentMode==='bulk') renderGrid();
+  if(cat==='report'){ renderDailyQuotaTab(); renderMyConsumptionChart(); }
 }
 
 // ==================== 타입 탭 ====================
@@ -1227,7 +1262,7 @@ async function runSettlementFlow(items, source){
 // 담당자: 배포 시 이 값만 실제 Apps Script 웹앱 URL로 바꿔주세요.
 const SETTLEMENT_URL = "https://script.google.com/macros/s/AKfycbyHE1xH63PnCE2eT1WYlnKGqNnsVJMtJG2YzdJAgC_-VvkbjV-e2oZ8bl61-ksxXJ4zIw/exec";
 // 담당자: 관리자 전용 키. 파트너 키와 겹치지 않는 값으로 바꿔서 사용하세요.
-const ADMIN_KEY = "kimsman";
+const ADMIN_KEY = "wkahdfoq";
 
 let currentPartner = null; // {partnerId, partnerName, placePrice, shoppingPrice, total, campaigns}
 
@@ -1251,7 +1286,8 @@ function resetSessionState(){
   document.getElementById('myToDate').value='';
 
   renderList();
-  setMode('individual'); // 탭/화면 표시를 기본값으로 복귀
+  setMode('individual'); // 서브탭을 기본값으로 복귀
+  setCategory('register'); // 대분류도 기본값으로 복귀
   renderAll(); // 타입탭·입력폼을 기본 타입(NPD0) 기준으로 다시 그림
 }
 
