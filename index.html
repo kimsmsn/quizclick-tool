@@ -171,7 +171,7 @@
       </div>
       <div></div>
     </div>
-    <div class="preview-label">일참여한도 현황 (내 캠페인 기간이 겹치는 구간별 합계)</div>
+    <div class="preview-label">일참여한도 현황 (오늘부터 10일, 구간별 합계)</div>
     <div id="dashDailyQuota" class="preview">캠페인을 등록하면 여기에 표시됩니다.</div>
 
     <div id="accountSelectWrap" style="display:none;margin-top:16px;">
@@ -323,14 +323,8 @@
           <div class="preview-label">미소진 (배정 - 소진수량)</div>
           <div class="statbox" id="myRemaining">-</div>
         </div>
-        <div>
-          <div class="preview-label">누적 소진금액</div>
-          <div class="statbox" id="myConsumedAmount">-</div>
-        </div>
-        <div>
-          <div class="preview-label">최근 일소진량</div>
-          <div class="statbox" id="myLatestDaily">-</div>
-        </div>
+        <div></div>
+        <div></div>
       </div>
       <div style="position:relative;width:100%;height:240px;">
         <canvas id="myConsumptionChart"></canvas>
@@ -1297,7 +1291,7 @@ async function runSettlementFlow(items, source){
 
 // ==================== 파트너 키 / 관리자 로그인 ====================
 // 담당자: 배포 시 이 값만 실제 Apps Script 웹앱 URL로 바꿔주세요.
-const SETTLEMENT_URL = "https://script.google.com/macros/s/AKfycbxb0mkUyTUGRQH4gqD9y3U0tpjh7pxKAf7MesfrMxRqJfqJsK6abJ2oZteYHuSgJBQxCw/exec";
+const SETTLEMENT_URL = "https://script.google.com/macros/s/AKfycbyp9eNRmaSJnaoF5f-aciA3OxK2aiuzvGboGpOVG4EnEdkAgYWk6eLAq3XS6IJbKwTxWg/exec";
 // 담당자: 관리자 전용 키. 파트너 키와 겹치지 않는 값으로 바꿔서 사용하세요.
 const ADMIN_KEY = "wkahdfoq";
 
@@ -1320,8 +1314,6 @@ function resetSessionState(){
   document.getElementById('myRangeSummary').textContent='기간을 선택하고 "기간 조회"를 눌러주세요.';
   document.getElementById('myConsumptionTable').innerHTML='';
   document.getElementById('myRemaining').textContent='-';
-  document.getElementById('myConsumedAmount').textContent='-';
-  document.getElementById('myLatestDaily').textContent='-';
   document.getElementById('myFromDate').value='';
   document.getElementById('myToDate').value='';
   document.getElementById('dqFromDate').value='';
@@ -1432,10 +1424,12 @@ function renderPartnerDashboard(){
       : '데이터 없음';
   }
 
-  const segments = computeOverlapSegments(currentPartner.campaigns);
+  const dqDefaultFrom = todayIso();
+  const dqDefaultTo = addDaysIso(dqDefaultFrom, 9);
+  const segments = computeOverlapSegments(currentPartner.campaigns, dqDefaultFrom, dqDefaultTo);
   const dq = document.getElementById('dashDailyQuota');
   if(segments.length===0){
-    dq.textContent = '아직 등록된 캠페인 기록이 없습니다.';
+    dq.textContent = '아직 등록된 캠페인 기록이 없습니다. (오늘부터 10일 기준)';
   } else {
     dq.innerHTML = segments.map(s=>
       `${s.from}${s.from!==s.to? ' ~ '+s.to : ''} : 합계 ${Number(s.total).toLocaleString()}`
@@ -1476,12 +1470,21 @@ function getStatusForAccount(value){
 
 function renderAccountSummary(){
   const sel = document.getElementById('accountSelect');
-  const status = getStatusForAccount(sel.value || 'self');
+  const value = sel.value || 'self';
+  const status = getStatusForAccount(value);
   const el = document.getElementById('accountSelectSummary');
   if(!status){ el.textContent = '데이터 없음'; return; }
+
+  const isIndividualChild = value !== 'self' && value !== '__all__';
+  const balanceText = isIndividualChild
+    ? `<span style="color:var(--muted);font-style:italic;">전체 합계에서 확인</span>`
+    : fmtWon(status.balance);
+  const chargeNeededText = isIndividualChild
+    ? `<span style="color:var(--muted);font-style:italic;">전체 합계에서 확인</span>`
+    : `<span style="${(status.chargeNeeded||0)>0? 'color:#c0392b;font-weight:700;':''}">${fmtWon(status.chargeNeeded)}</span>`;
+
   el.innerHTML = `소진금액: ${fmtWon(status.consumedAmount)} · 미소진: ${Number(status.remaining||0).toLocaleString()} · `+
-    `잔액: ${fmtWon(status.balance)} · 예상비용: ${fmtWon(status.expectedCost)} · `+
-    `충전하실 금액: <span style="${(status.chargeNeeded||0)>0? 'color:#c0392b;font-weight:700;':''}">${fmtWon(status.chargeNeeded)}</span>`;
+    `잔액: ${balanceText} · 예상비용: ${fmtWon(status.expectedCost)} · 충전하실 금액: ${chargeNeededText}`;
 }
 
 function renderAccountSelector(){
@@ -1618,11 +1621,6 @@ function renderMyConsumptionChart(){
   const log = status.dailyConsumption || [];
 
   document.getElementById('myRemaining').textContent = Number(status.remaining||0).toLocaleString();
-  document.getElementById('myConsumedAmount').textContent = fmtWon(status.consumedAmount);
-  const recent = log.slice(-1)[0];
-  document.getElementById('myLatestDaily').textContent = recent
-    ? `${recent.date} : ${Number(recent.amount).toLocaleString()}`
-    : '데이터 없음';
 
   if(typeof Chart === 'undefined') return;
   const ctx = document.getElementById('myConsumptionChart');
@@ -1644,8 +1642,16 @@ function renderMyConsumptionChart(){
 document.getElementById('btnMyRangeQuery').addEventListener('click', ()=>{
   if(!currentPartner || !currentPartner.status) return;
   const log = currentPartner.status.dailyConsumption || [];
+  const allocated = Number(currentPartner.status.allocated || 0);
   const from = document.getElementById('myFromDate').value;
   const to = document.getElementById('myToDate').value;
+
+  // 미소진은 "전체 기록" 기준 누적 소진을 계산해야 정확합니다 (조회 기간만 기준으로 하면 값이 부정확해짐).
+  const sortedLog = [...log].sort((a,b)=> a.date < b.date ? -1 : (a.date > b.date ? 1 : 0));
+  const cumulativeMap = {};
+  let running = 0;
+  sortedLog.forEach(r=>{ running += Number(r.amount)||0; cumulativeMap[r.date] = running; });
+
   const filtered = log.filter(r => (!from || r.date >= from) && (!to || r.date <= to));
   const total = filtered.reduce((s,r)=>s+r.amount, 0);
 
@@ -1657,12 +1663,13 @@ document.getElementById('btnMyRangeQuery').addEventListener('click', ()=>{
   const table = document.getElementById('myConsumptionTable');
   table.innerHTML = '';
   const thead=document.createElement('thead'); const trh=document.createElement('tr');
-  ['날짜','소진수량'].forEach(t=>{ const th=document.createElement('th'); th.textContent=t; trh.appendChild(th); });
+  ['날짜','소진수량','미소진(누적)'].forEach(t=>{ const th=document.createElement('th'); th.textContent=t; trh.appendChild(th); });
   thead.appendChild(trh); table.appendChild(thead);
   const tbody=document.createElement('tbody');
   filtered.forEach(row=>{
     const tr=document.createElement('tr');
-    [row.date, row.amount.toLocaleString()].forEach(v=>{
+    const remainingAfter = allocated - (cumulativeMap[row.date] || 0);
+    [row.date, row.amount.toLocaleString(), remainingAfter.toLocaleString()].forEach(v=>{
       const td=document.createElement('td'); const span=document.createElement('span'); span.textContent=v; td.appendChild(span); tr.appendChild(td);
     });
     tbody.appendChild(tr);
@@ -1715,7 +1722,17 @@ document.getElementById('btnAdmRangeQuery').addEventListener('click', async ()=>
 
   summaryEl.textContent = '조회 중...';
   try{
-    const log = await fetchPartnerDailyLog(partnerId);
+    const [log, statusRes] = await Promise.all([
+      fetchPartnerDailyLog(partnerId),
+      fetch(`${SETTLEMENT_URL}?action=getPartnerFullStatus&partnerId=${encodeURIComponent(partnerId)}`).then(r=>r.json())
+    ]);
+    const allocated = statusRes.success ? Number(statusRes.status.allocated||0) : 0;
+
+    const sortedLog = [...log].sort((a,b)=> a.date < b.date ? -1 : (a.date > b.date ? 1 : 0));
+    const cumulativeMap = {};
+    let running = 0;
+    sortedLog.forEach(r=>{ running += Number(r.amount)||0; cumulativeMap[r.date] = running; });
+
     const filtered = log.filter(r => (!from || r.date >= from) && (!to || r.date <= to));
     const total = filtered.reduce((s,r)=>s+r.amount, 0);
 
@@ -1727,13 +1744,14 @@ document.getElementById('btnAdmRangeQuery').addEventListener('click', async ()=>
     table.innerHTML = '';
     const thead = document.createElement('thead');
     const trh = document.createElement('tr');
-    ['날짜','소진수량'].forEach(t=>{ const th=document.createElement('th'); th.textContent=t; trh.appendChild(th); });
+    ['날짜','소진수량','미소진(누적)'].forEach(t=>{ const th=document.createElement('th'); th.textContent=t; trh.appendChild(th); });
     thead.appendChild(trh);
     table.appendChild(thead);
     const tbody = document.createElement('tbody');
     filtered.forEach(row=>{
       const tr=document.createElement('tr');
-      [row.date, row.amount.toLocaleString()].forEach(v=>{
+      const remainingAfter = allocated - (cumulativeMap[row.date] || 0);
+      [row.date, row.amount.toLocaleString(), remainingAfter.toLocaleString()].forEach(v=>{
         const td=document.createElement('td'); const span=document.createElement('span'); span.textContent=v; td.appendChild(span); tr.appendChild(td);
       });
       tbody.appendChild(tr);
@@ -1763,13 +1781,17 @@ function renderMoneyTable(overview){
   overview.forEach(row=>{
     const tr = document.createElement('tr');
     const chargeNeeded = row.chargeNeeded || 0;
+    const isChild = !!row.isChild;
+    const balanceText = isChild ? '모계정 참조' : fmtWon(row.balance);
+    const chargeNeededText = isChild ? '모계정 참조' : fmtWon(chargeNeeded);
     [
-      row.partnerId, `${row.partnerName||'-'}${row.hasChildren? ' 👥(자계정 합산)':''}`, row.consumedQty.toLocaleString(),
-      fmtWon(row.consumedAmount), fmtWon(row.expectedCost), fmtWon(row.charged),
-      fmtWon(chargeNeeded), fmtWon(row.balance)
+      row.partnerId, `${row.partnerName||'-'}${row.hasChildren? ' 👥(자계정 합산)':''}${isChild? ' (자계정)':''}`,
+      row.consumedQty.toLocaleString(), fmtWon(row.consumedAmount), fmtWon(row.expectedCost), fmtWon(row.charged),
+      chargeNeededText, balanceText
     ].forEach((v,i)=>{
       const td=document.createElement('td'); const span=document.createElement('span'); span.textContent=v;
-      if(i===6 && chargeNeeded>0){ span.style.color='#c0392b'; span.style.fontWeight='700'; }
+      if(i===6 && !isChild && chargeNeeded>0){ span.style.color='#c0392b'; span.style.fontWeight='700'; }
+      if((i===6||i===7) && isChild){ span.style.color='var(--muted)'; span.style.fontStyle='italic'; }
       td.appendChild(span); tr.appendChild(td);
     });
     tbody.appendChild(tr);
