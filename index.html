@@ -453,11 +453,18 @@
       <h2>매체사 송출비율 대시보드</h2>
       <div class="hint" style="margin-bottom:10px;">
         "소진원본" 시트의 광고주(매체사) 기준으로 묶고, "매체단가" 시트에 등록한 매체사 자체 단가로 계산한 송출비입니다.
-        파트너 단가와는 완전히 별개로 계산됩니다.
+        파트너 단가와는 완전히 별개로 계산됩니다. 아래에서 날짜를 고르면 <b>그날 하루만의 송출비</b>를 보여줍니다.
       </div>
-      <div class="actions">
-        <button class="btn btn-outline" id="btnMediaRefresh">새로고침</button>
+      <div class="row3">
+        <div class="field"><label>조회 날짜</label><input type="date" id="mediaDate"></div>
+        <div class="field" style="display:flex;align-items:flex-end;">
+          <button class="btn btn-primary" id="btnMediaDateQuery" style="width:100%;">그날 조회</button>
+        </div>
+        <div class="field" style="display:flex;align-items:flex-end;">
+          <button class="btn btn-outline" id="btnMediaRefresh" style="width:100%;">전체 기간 보기</button>
+        </div>
       </div>
+      <div id="mediaMissingWarning" class="warn" style="display:none;margin-top:10px;"></div>
       <div class="row2" style="margin-top:10px;">
         <div style="position:relative;width:100%;height:260px;">
           <canvas id="mediaShareChart"></canvas>
@@ -1321,7 +1328,7 @@ async function runSettlementFlow(items, source){
 
 // ==================== 파트너 키 / 관리자 로그인 ====================
 // 담당자: 배포 시 이 값만 실제 Apps Script 웹앱 URL로 바꿔주세요.
-const SETTLEMENT_URL = "https://script.google.com/macros/s/AKfycbw30qAUboHV45cs1LyqTGLa4wUxRyucq2v2oqMYh6ZClcQPN5e0lM6bd41Xh8DbWOeySg/exec";
+const SETTLEMENT_URL = "https://script.google.com/macros/s/AKfycbyxZoM0tB9LRi-3eTlMfWPRXKJq3bXrbaLjysy6DqUF814kHDfn4fnF78rOEdtDaUkJEQ/exec";
 // 담당자: 관리자 전용 키. 파트너 키와 겹치지 않는 값으로 바꿔서 사용하세요.
 const ADMIN_KEY = "wkahdfoq";
 
@@ -1365,7 +1372,8 @@ async function tryUnlock(){
     document.getElementById('adminRoot').style.display = 'block';
     await refreshAdminOverview();
     await refreshMoneyOverview();
-    await refreshMediaOverview();
+    document.getElementById('mediaDate').value = todayIso();
+    await refreshMediaOverview(todayIso());
     return;
   }
 
@@ -1800,14 +1808,18 @@ document.getElementById('admPartnerSelect').addEventListener('change', refreshAd
 let mediaShareChartInstance = null;
 let mediaDailyChartInstance = null;
 
-async function refreshMediaOverview(){
+async function refreshMediaOverview(dateFilter){
   try{
-    const res = await fetch(`${SETTLEMENT_URL}?action=getMediaOverview`);
+    const url = dateFilter
+      ? `${SETTLEMENT_URL}?action=getMediaOverview&date=${encodeURIComponent(dateFilter)}`
+      : `${SETTLEMENT_URL}?action=getMediaOverview`;
+    const res = await fetch(url);
     const data = await res.json();
     if(!data.success) return;
 
     renderMediaOverviewTable(data.media);
     renderMediaShareChart(data.media);
+    renderMediaMissingWarning(data.missingPriceCategories);
 
     const sel = document.getElementById('mediaSelect');
     const prevValue = sel.value;
@@ -1819,12 +1831,20 @@ async function refreshMediaOverview(){
   }
 }
 
+function renderMediaMissingWarning(list){
+  const el = document.getElementById('mediaMissingWarning');
+  if(!list || list.length===0){ el.style.display='none'; return; }
+  el.style.display='block';
+  el.innerHTML = '⚠️ 아래 매체사·유형은 "매체단가" 시트에 단가가 없어서(0원) 송출비 계산에서 빠져있습니다:<br>' +
+    list.map(x=>`${x.media} · ${x.category} (수량 ${Number(x.qty).toLocaleString()})`).join('<br>');
+}
+
 function renderMediaOverviewTable(mediaList){
   const table = document.getElementById('mediaOverviewTable');
   table.innerHTML = '';
   const thead = document.createElement('thead');
   const trh = document.createElement('tr');
-  ['매체사','비율','총 송출비','평균 일송출비','총 소진수량'].forEach(t=>{
+  ['매체사','비율','총 송출비','평균 단가(건당)','총 소진수량'].forEach(t=>{
     const th=document.createElement('th'); th.textContent=t; trh.appendChild(th);
   });
   thead.appendChild(trh);
@@ -1833,7 +1853,7 @@ function renderMediaOverviewTable(mediaList){
   const tbody = document.createElement('tbody');
   mediaList.forEach(m=>{
     const tr = document.createElement('tr');
-    [m.media, `${m.percentage}%`, fmtWon(m.totalCost), fmtWon(m.avgDailyCost), m.totalQty.toLocaleString()]
+    [m.media, `${m.percentage}%`, fmtWon(m.totalCost), fmtWon(m.avgUnitCost), m.totalQty.toLocaleString()]
       .forEach(v=>{ const td=document.createElement('td'); const span=document.createElement('span'); span.textContent=v; td.appendChild(span); tr.appendChild(td); });
     tbody.appendChild(tr);
   });
@@ -1885,7 +1905,12 @@ async function refreshMediaDailyChart(){
   }
 }
 
-document.getElementById('btnMediaRefresh').addEventListener('click', refreshMediaOverview);
+document.getElementById('btnMediaRefresh').addEventListener('click', ()=> refreshMediaOverview(null));
+document.getElementById('btnMediaDateQuery').addEventListener('click', ()=>{
+  const d = document.getElementById('mediaDate').value;
+  if(!d){ alert('조회할 날짜를 선택해주세요.'); return; }
+  refreshMediaOverview(d);
+});
 document.getElementById('mediaSelect').addEventListener('change', refreshMediaDailyChart);
 
 // ==================== 파트너별 충전 / 소진금액 / 잔액 ====================
