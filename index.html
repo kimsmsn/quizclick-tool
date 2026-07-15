@@ -1798,11 +1798,13 @@ document.getElementById('btnAdmRangeQuery').addEventListener('click', async ()=>
 
   summaryEl.textContent = '조회 중...';
   try{
-    const [log, statusRes] = await Promise.all([
+    const [log, statusRes, campRes] = await Promise.all([
       fetchPartnerDailyLog(partnerId),
-      fetch(`${SETTLEMENT_URL}?action=getPartnerFullStatus&partnerId=${encodeURIComponent(partnerId)}`).then(r=>r.json())
+      fetch(`${SETTLEMENT_URL}?action=getPartnerFullStatus&partnerId=${encodeURIComponent(partnerId)}`).then(r=>r.json()),
+      fetch(`${SETTLEMENT_URL}?action=getCampaigns&partnerId=${encodeURIComponent(partnerId)}`).then(r=>r.json())
     ]);
     const allocated = statusRes.success ? Number(statusRes.status.allocated||0) : 0;
+    const campaigns = campRes.success ? campRes.campaigns : [];
 
     const sortedLog = [...log].sort((a,b)=> a.date < b.date ? -1 : (a.date > b.date ? 1 : 0));
     const cumulativeMap = {};
@@ -1820,14 +1822,16 @@ document.getElementById('btnAdmRangeQuery').addEventListener('click', async ()=>
     table.innerHTML = '';
     const thead = document.createElement('thead');
     const trh = document.createElement('tr');
-    ['날짜','소진수량','미소진(누적)'].forEach(t=>{ const th=document.createElement('th'); th.textContent=t; trh.appendChild(th); });
+    ['날짜','소진수량','미소진(누적)','일미소진'].forEach(t=>{ const th=document.createElement('th'); th.textContent=t; trh.appendChild(th); });
     thead.appendChild(trh);
     table.appendChild(thead);
     const tbody = document.createElement('tbody');
     filtered.forEach(row=>{
       const tr=document.createElement('tr');
       const remainingAfter = allocated - (cumulativeMap[row.date] || 0);
-      [row.date, row.amount.toLocaleString(), remainingAfter.toLocaleString()].forEach(v=>{
+      const dailyAllocated = dailyAllocatedOnDate(campaigns, row.date);
+      const dailyShortfall = dailyAllocated - (Number(row.amount)||0);
+      [row.date, row.amount.toLocaleString(), remainingAfter.toLocaleString(), dailyShortfall.toLocaleString()].forEach(v=>{
         const td=document.createElement('td'); const span=document.createElement('span'); span.textContent=v; td.appendChild(span); tr.appendChild(td);
       });
       tbody.appendChild(tr);
