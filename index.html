@@ -1,17 +1,18 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8"
-      name="description"
-      content="퀴즈클릭 캠페인의 툴페이지입니다">
-<title>QuizClick 캠페인 등록 도구</title>
-<link rel="icon" href="favicon.ico">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- 검색엔진 색인 방지: 파트너/관리자 로그인이 있는 내부 도구라 구글 검색에 노출되면 안 됩니다 -->
+<meta name="robots" content="noindex, nofollow">
+<meta name="description" content="QuizClick 캠페인 등록 및 파트너 정산 관리 도구 (내부 전용)">
 <meta property="og:title" content="QuizClick 캠페인 등록 도구">
 <meta property="og:description" content="파트너 전용 키로 로그인하는 내부 업무 도구입니다.">
 <meta property="og:image" content="apple-touch-icon.png">
 <meta property="og:type" content="website">
+<title>QuizClick 캠페인 등록 도구</title>
+<link rel="icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
@@ -146,38 +147,35 @@
         <div class="preview-label">파트너</div>
         <div class="statbox" id="dashPartnerName">-</div>
       </div>
-      <div>
+      <div id="dashTotalBox">
         <div class="preview-label">누적 정산금액</div>
         <div class="statbox" id="dashTotal">-</div>
       </div>
-      <div>
+      <div id="dashPriceBox">
         <div class="preview-label">유형별 단가</div>
         <div class="statbox" id="dashPrice" style="font-size:12.5px;font-weight:600;line-height:1.6;">-</div>
       </div>
     </div>
-    <div class="row3" style="margin-bottom:6px;">
-      <div>
+    <div class="row3" id="dashRow2" style="margin-bottom:6px;">
+      <div id="dashBalanceBox">
         <div class="preview-label">잔액 (충전 - 소진금액)</div>
         <div class="statbox" id="dashBalance">-</div>
       </div>
-      <div>
+      <div id="dashRemainingBox">
         <div class="preview-label">미소진 (배정 - 소진수량)</div>
         <div class="statbox" id="dashRemaining">-</div>
       </div>
-      <div>
+      <div id="dashRecentDailyBox">
         <div class="preview-label">최근 일소진량</div>
         <div class="statbox" id="dashRecentDaily">-</div>
       </div>
     </div>
-    <div class="row3" style="margin-bottom:6px;">
-      <div>
-        <div class="preview-label">예상비용 (배정량 × 단가)</div>
-        <div class="statbox" id="dashExpectedCost">-</div>
-      </div>
-      <div>
+    <div class="row3" id="dashRow3" style="margin-bottom:6px;">
+      <div id="dashChargeNeededBox">
         <div class="preview-label">충전하실 금액</div>
         <div class="statbox" id="dashChargeNeeded">-</div>
       </div>
+      <div></div>
       <div></div>
     </div>
     <div class="preview-label">일참여한도 현황 (오늘부터 10일, 구간별 합계)</div>
@@ -327,7 +325,7 @@
       <div class="hint" style="margin-bottom:10px;">
         실제 소진 리포트("소진원본" 시트) 기준입니다. 위 일참여한도 현황(등록 기준)과는 다른 수치입니다.
       </div>
-      <div class="row3" style="margin-bottom:10px;">
+      <div class="row3" id="myRemainingRow" style="margin-bottom:10px;">
         <div>
           <div class="preview-label">미소진 (배정 - 소진수량)</div>
           <div class="statbox" id="myRemaining">-</div>
@@ -1396,6 +1394,7 @@ async function tryUnlock(){
     }
     currentPartner = data;
     resetSessionState(); // 이전 파트너 세션에서 남아있던 데이터/그래프를 전부 초기화
+    applyGradeVisibility();
     document.getElementById('lockScreen').style.display = 'none';
     document.getElementById('appRoot').style.display = 'block';
     document.getElementById('f_advertiserId').value = data.partnerId;
@@ -1420,6 +1419,28 @@ document.getElementById('btnLogoutPartner').addEventListener('click', logout);
 document.getElementById('btnLogoutAdmin').addEventListener('click', logout);
 
 // ---- 파트너 대시보드 (누적정산 + 일참여한도 겹침 현황) ----
+// 특정 하루(date)에 배정된 일참여한도 합계 (그 날짜가 시작일~종료일 사이에 걸치는 캠페인들의 dailyQuota 합)
+function dailyAllocatedOnDate(campaigns, date){
+  const valid = (campaigns||[]).filter(c=>c.startAt && c.endAt);
+  return valid.reduce((s,c)=> (c.startAt<=date && date<=c.endAt) ? s+(Number(c.dailyQuota)||0) : s, 0);
+}
+
+// B등급: 파트너명 + 일참여한도 현황 + 소진수량만 노출. 나머지(잔액/미소진/단가/충전필요액/최근소진량/모계정선택)는 숨김.
+function applyGradeVisibility(){
+  if(!currentPartner) return;
+  const isGradeB = currentPartner.grade === 'B';
+  const hideIfB = (id) => { const el = document.getElementById(id); if(el) el.style.display = isGradeB ? 'none' : ''; };
+
+  hideIfB('dashTotalBox');
+  hideIfB('dashPriceBox');
+  hideIfB('dashBalanceBox');
+  hideIfB('dashRemainingBox');
+  hideIfB('dashRecentDailyBox');
+  hideIfB('dashChargeNeededBox');
+  hideIfB('accountSelectWrap');
+  hideIfB('myRemainingRow');
+}
+
 function computeOverlapSegments(campaigns, fromDate, toDate){
   const valid = (campaigns||[]).filter(c=>c.startAt && c.endAt);
   if(valid.length===0) return [];
@@ -1460,7 +1481,6 @@ function renderPartnerDashboard(){
     balEl.textContent = fmtWon(status.balance);
     balEl.classList.toggle('negative', status.balance<0);
     document.getElementById('dashRemaining').textContent = Number(status.remaining||0).toLocaleString();
-    document.getElementById('dashExpectedCost').textContent = fmtWon(status.expectedCost);
     const chargeNeeded = status.chargeNeeded || 0;
     const chargeEl = document.getElementById('dashChargeNeeded');
     chargeEl.textContent = fmtWon(chargeNeeded);
@@ -1532,7 +1552,7 @@ function renderAccountSummary(){
     : `<span style="${(status.chargeNeeded||0)>0? 'color:#c0392b;font-weight:700;':''}">${fmtWon(status.chargeNeeded)}</span>`;
 
   el.innerHTML = `소진금액: ${fmtWon(status.consumedAmount)} · 미소진: ${Number(status.remaining||0).toLocaleString()} · `+
-    `잔액: ${balanceText} · 예상비용: ${fmtWon(status.expectedCost)} · 충전하실 금액: ${chargeNeededText}`;
+    `잔액: ${balanceText} · 충전하실 금액: ${chargeNeededText}`;
 }
 
 function renderAccountSelector(){
@@ -1693,8 +1713,9 @@ document.getElementById('btnMyRangeQuery').addEventListener('click', ()=>{
   const allocated = Number(currentPartner.status.allocated || 0);
   const from = document.getElementById('myFromDate').value;
   const to = document.getElementById('myToDate').value;
+  const isGradeB = currentPartner.grade === 'B';
 
-  // 미소진은 "전체 기록" 기준 누적 소진을 계산해야 정확합니다 (조회 기간만 기준으로 하면 값이 부정확해짐).
+  // 미소진(누적)은 "전체 기록" 기준 누적 소진을 계산해야 정확합니다 (조회 기간만 기준으로 하면 값이 부정확해짐).
   const sortedLog = [...log].sort((a,b)=> a.date < b.date ? -1 : (a.date > b.date ? 1 : 0));
   const cumulativeMap = {};
   let running = 0;
@@ -1711,13 +1732,20 @@ document.getElementById('btnMyRangeQuery').addEventListener('click', ()=>{
   const table = document.getElementById('myConsumptionTable');
   table.innerHTML = '';
   const thead=document.createElement('thead'); const trh=document.createElement('tr');
-  ['날짜','소진수량','미소진(누적)'].forEach(t=>{ const th=document.createElement('th'); th.textContent=t; trh.appendChild(th); });
+  const headers = isGradeB ? ['날짜','소진수량'] : ['날짜','소진수량','미소진(누적)','일미소진'];
+  headers.forEach(t=>{ const th=document.createElement('th'); th.textContent=t; trh.appendChild(th); });
   thead.appendChild(trh); table.appendChild(thead);
   const tbody=document.createElement('tbody');
   filtered.forEach(row=>{
     const tr=document.createElement('tr');
-    const remainingAfter = allocated - (cumulativeMap[row.date] || 0);
-    [row.date, row.amount.toLocaleString(), remainingAfter.toLocaleString()].forEach(v=>{
+    const cells = [row.date, row.amount.toLocaleString()];
+    if(!isGradeB){
+      const remainingAfter = allocated - (cumulativeMap[row.date] || 0);
+      const dailyAllocated = dailyAllocatedOnDate(currentPartner.campaigns, row.date);
+      const dailyShortfall = dailyAllocated - (Number(row.amount)||0);
+      cells.push(remainingAfter.toLocaleString(), dailyShortfall.toLocaleString());
+    }
+    cells.forEach(v=>{
       const td=document.createElement('td'); const span=document.createElement('span'); span.textContent=v; td.appendChild(span); tr.appendChild(td);
     });
     tbody.appendChild(tr);
